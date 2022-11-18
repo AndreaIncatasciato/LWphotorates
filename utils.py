@@ -3,6 +3,18 @@ from astropy import constants as const
 from astropy import units as u
 
 
+def get_ioniz_energy_hydrogen():
+
+    '''
+    Return the ionisation energy of an Hydrogen atom,
+    that is very similar to the Rydberg constant for infinite nuclear mass.
+    Ryd is originally in [1/m], so it is converted to [eV].
+    '''
+
+    ryd_hydrogen = const.Ryd * const.m_p / (const.m_p + const.m_e)
+    return ryd_hydrogen * const.c * const.h.to(u.eV * u.s)
+
+
 def nu2lambda(freq):
 
     '''
