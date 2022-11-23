@@ -6,7 +6,7 @@ from astropy import units as u
 
 from scipy.interpolate import InterpolatedUnivariateSpline
 
-from photorates.utils import nu2lambda,lambda2nu,spec_nu2lambda,spec_lambda2nu,cm2eV,eV2cm,cm2K,K2cm
+from LWphotorates.utils import nu2lambda, lambda2nu, spec_nu2lambda, spec_lambda2nu, cm2eV, eV2cm, cm2K, K2cm
 
 import frigus
 from frigus.readers.dataset import DataLoader

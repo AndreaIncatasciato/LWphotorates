@@ -1,9 +1,9 @@
 import numpy as __np  # why this? so it doesn't show np when doing 'import ComputeRate'
 from astropy import units as __u
 
-import photorates.H2 as H2
-import photorates.H2p as H2p
-import photorates.HM as HM
+from LWphotorates import H2
+from LWphotorates import HM
+from LWphotorates import H2p
 
 
 # when doing from ComputeRate import * it will only these

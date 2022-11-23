@@ -3,7 +3,7 @@ import numpy as np
 from astropy import constants as const
 from astropy import units as u
 
-from photorates.utils import get_ioniz_energy_hydrogen, nu2lambda, lambda2nu ,spec_lambda2nu
+from LWphotorates.utils import get_ioniz_energy_hydrogen, nu2lambda, lambda2nu ,spec_lambda2nu
 
 from scipy.interpolate import InterpolatedUnivariateSpline
 
