@@ -15,44 +15,66 @@ def get_ioniz_energy_hydrogen():
     return ryd_hydrogen * const.c * const.h.to(u.eV * u.s)
 
 
-def nu2lambda(freq):
+def nu2lambda(frequency_array):
 
     '''
-    Convert frequency [Hz] to wavelength [A].
+    Convert an array of frequencies [Hz] to an array of wavelengths [A].
+    Both arrays are in increasing order, so they are one the mirror of the other.
     '''
 
-    wl=(const.c.to(u.angstrom/u.s)/np.atleast_1d(freq)[::-1]).to(u.angstrom)
-    return wl
+    if type(frequency_array) != u.Quantity:
+        frequency_array = frequency_array * u.Hz
+
+    speed_of_light = (const.c).to(u.angstrom * u.Hz)
+    wavelength_array = speed_of_light / np.atleast_1d(frequency_array)[::-1]
+    return wavelength_array
 
 
-def lambda2nu(wl):
-
-    '''
-    Convert wavelength [A] to frequency [Hz].
-    '''
-
-    freq=(const.c.to(u.angstrom/u.s)/np.atleast_1d(wl)[::-1]).to(u.Hz)
-    return freq
-
-
-def spec_nu2lambda(freq,spec_freq):
+def lambda2nu(wavelength_array):
 
     '''
-    Convert spectrum from [erg/Hz/s] to [erg/A/s].
+    Convert an array of wavelengths [A] to an array of frequencies [Hz].
+    Both arrays are in increasing order, so they are one the mirror of the other.
     '''
 
-    spec_wl=np.atleast_1d(spec_freq*freq**2/const.c.to(u.angstrom/u.s))[::-1].to(u.erg/u.s/u.angstrom)
-    return spec_wl
+    if type(wavelength_array) != u.Quantity:
+        wavelength_array = wavelength_array * u.angstrom
 
+    speed_of_light = (const.c).to(u.angstrom * u.Hz)
+    frequency_array = speed_of_light / np.atleast_1d(wavelength_array)[::-1]
+    return frequency_array
+    
 
-def spec_lambda2nu(wl,spec_wl):
+def spec_nu2lambda(frequency_array, spectrum_freq):
 
     '''
-    Convert spectrum from [erg/A/s] to [erg/Hz/s].
+    Convert spectrum from [erg/s/Hz] to [erg/s/A].
     '''
 
-    spec_freq=np.atleast_1d(spec_wl*wl**2/const.c.to(u.angstrom/u.s))[::-1].to(u.erg/u.s/u.Hz)
-    return spec_freq
+    if type(frequency_array) != u.Quantity:
+        frequency_array = frequency_array * u.Hz
+    if type(spectrum_freq) != u.Quantity:
+        spectrum_freq = spectrum_freq * u.erg / u.s / u.Hz
+
+    speed_of_light = (const.c).to(u.angstrom * u.Hz)
+    spectrum_wl = np.atleast_1d(spectrum_freq * frequency_array**2 / speed_of_light)[::-1]
+    return spectrum_wl
+
+
+def spec_lambda2nu(wavelength_array, spectrum_wl):
+
+    '''
+    Convert spectrum from [erg/s/A] to [erg/s/Hz].
+    '''
+
+    if type(wavelength_array) != u.Quantity:
+        wavelength_array = wavelength_array * u.angstrom
+    if type(spectrum_wl) != u.Quantity:
+        spectrum_wl = spectrum_wl * u.erg / u.s / u.angstrom
+
+    speed_of_light = (const.c).to(u.angstrom * u.Hz)
+    spectrum_freq = np.atleast_1d(spectrum_wl * wavelength_array**2 / speed_of_light)[::-1]
+    return spectrum_freq
 
 
 def cm2eV(en_cm):
