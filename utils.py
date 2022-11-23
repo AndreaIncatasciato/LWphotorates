@@ -77,64 +77,70 @@ def spec_lambda2nu(wavelength_array, spectrum_wl):
     return spectrum_freq
 
 
-def cm2eV(en_cm):
+def convert_energy_cm2ev(energy_cm):
 
     '''
     Convert energies from [1/cm] to [eV].
-    It works with variables both w/ and w/o units
-    (in the latter case it assumes that the input units are [1/cm]).
+    Input:
+        energy_cm: energy, in [1/cm]
+    Output:
+        energy_ev: energy, in [eV]
     '''
 
-    if type(en_cm)==u.Quantity:
-        en_eV=en_cm*const.h.to(u.eV*u.s)*const.c.to(u.cm/u.s)
-    else:
-        en_eV=en_cm/u.cm*const.h.to(u.eV*u.s)*const.c.to(u.cm/u.s)
-    return en_eV
+    if type(energy_cm) != u.Quantity:
+        energy_cm = energy_cm / u.cm
+    energy_ev = energy_cm * (const.h).to(u.eV * u.s) * (const.c).to(u.cm / u.s)
+    return energy_ev
 
 
-def eV2cm(en_eV):
+def convert_energy_ev2cm(energy_ev):
 
     '''
-    Convert energies from [eV] to[1/cm].
-    It works with variables both w/ and w/o units
-    (in the latter case it assumes that the input units are [eV]).
+    Convert energies from [eV] to [1/cm].
+    Input:
+        energy_ev: energy, in [eV]
+    Output:
+        energy_cm: energy, in [1/cm]
     '''
 
-    if type(en_eV)==u.Quantity:
-        en_cm=en_eV/(const.h.to(u.eV*u.s)*const.c.to(u.cm/u.s))
-    else:
-        en_cm=en_eV*u.eV/(const.h.to(u.eV*u.s)*const.c.to(u.cm/u.s))
-    return en_cm
+    if type(energy_ev) != u.Quantity:
+        energy_ev = energy_ev * u.eV
+    energy_cm  = energy_ev / ((const.h).to(u.eV * u.s) * (const.c).to(u.cm / u.s))
+    return energy_cm
 
 
-def cm2K(en_cm):
+def convert_energy_cm2k(energy_cm):
 
     '''
     Convert energies from [1/cm] to equivalent temperature [K].
-    It works with variables both w/ and w/o units
-    (in the latter case it assumes that the input units are [1/cm]).
+    Input:
+        energy_cm: energy, in [1/cm]
+    Output:
+        energy_k: equivalent temperature, in [K]
     '''
 
-    en_eV=cm2eV(en_cm)
-    en_K=en_eV/const.k_B.to(u.eV/u.K)
-    return en_K
+    if type(energy_cm) != u.Quantity:
+        energy_cm = energy_cm / u.cm
+    energy_ev = convert_energy_cm2ev(energy_cm)
+    energy_k = energy_ev / (const.k_B).to(u.eV / u.K)
+    return energy_k
 
 
-def K2cm(en_K):
+def convert_energy_k2cm(energy_k):
 
     '''
     Convert energies from equivalent temperature [K] to [1/cm].
-    It works with variables both w/ and w/o units
-    (in the latter case it assumes that the input units are [K]).
+    Input:
+        energy_k: equivalent temperature, in [K]
+    Output:
+        energy_cm: energy, in [1/cm]
     '''
 
-    if type(en_K)==u.Quantity:
-        en_eV=en_K*const.k_B.to(u.eV/u.K)
-    else:
-        en_eV=en_K*u.K*const.k_B.to(u.eV/u.K)
-    en_cm=en_eV/(const.h.to(u.eV*u.s)*const.c.to(u.cm/u.s))
-    return en_cm
-
+    if type(energy_k) != u.Quantity:
+        energy_k = energy_k * u.K
+    energy_ev = energy_k * (const.k_B).to(u.eV / u.K)
+    energy_cm = convert_energy_ev2cm(energy_ev)
+    return energy_cm
 
 
 def generate_blackbody_spectrum(radiation_temperature, energy_array, normalise_spectrum=True, photon_energy_normalisation=None):
