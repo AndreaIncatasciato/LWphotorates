@@ -136,40 +136,61 @@ def K2cm(en_K):
     return en_cm
 
 
-def spectrum_BB_norm(Trad,energies,energy_norm=const.Ryd*const.m_p/(const.m_p+const.m_e)*const.h.to(u.eV/u.Hz)*const.c.to(u.m*u.Hz)):
+
+def generate_blackbody_spectrum(radiation_temperature, energy_array, normalise_spectrum=True, photon_energy_normalisation=None):
 
     '''
     Produce a black body spectrum with a given radiation temperature,
     normalised at a given energy (default: Lyman limit).
     Input:
-        radiation temperature            [K]
-        array of photon energies         [eV]
-        normalisation energy             [eV]
+        radiation_temperature: the temperature of the black body, in [K]
+        energy_array: the array of photon energies, in [eV]
+        normalise_spectrum: boolean, whether the spectrum needs to be normalised at a specific photon energy; default: True
+        photon_energy_normalisation: photon energy at which the spectrum needs to be normalised, in [eV]
     Output:
-        array of intensities             [erg/s/Hz/cm^2/sr]
+        black-body spectrum, expressed as intensity, in [erg/s/Hz/cm^2/sr]
     '''
 
-    if type(Trad)!=u.Quantity:
-        Trad=Trad*u.K
-    if type(energies)!=u.Quantity:
-        Trad=Trad*u.eV
-    freq=energies/const.h.to(u.eV/u.Hz)
-    bb=((2./u.sr*const.h.to(u.erg/u.Hz)*(freq**3)/(const.c.to(u.cm*u.Hz)**2))/(np.exp(energies/(const.k_B.to(u.eV/u.K)*Trad))-1.)).to(u.erg/u.cm/u.cm/u.Hz/u.s/u.sr)
-    norm=1./((2./u.sr*const.h.to(u.erg/u.Hz)*((energy_norm/const.h.to(u.eV/u.Hz))**3)/(const.c.to(u.cm*u.Hz)**2))/(np.exp(energy_norm/(const.k_B.to(u.eV/u.K)*Trad))-1.)).to(u.erg/u.cm/u.cm/u.Hz/u.s/u.sr).value
-    bb*=norm
-    return bb
+    if type(radiation_temperature) != u.Quantity:
+        radiation_temperature = radiation_temperature * u.K
+    if type(energy_array) != u.Quantity:
+        energy_array = energy_array * u.eV
+    if normalise_spectrum:
+        if photon_energy_normalisation is None:
+            photon_energy_normalisation = get_ioniz_energy_hydrogen()
+        else:
+            if type(photon_energy_normalisation) != u.Quantity:
+                photon_energy_normalisation = photon_energy_normalisation * u.eV
+
+    frequency_array = energy_array / const.h.to(u.eV / u.Hz)
+
+    monocromatic_intensity_unit = u.erg / u.s / u.Hz / u.sr / u.cm**2
+
+    speed_of_light = (const.c).to(u.cm * u.Hz)
+    constant_factor = 2. / u.sr * (const.h).to(u.erg * u.s) / speed_of_light**2
+
+    unnormed_blackbody = constant_factor * frequency_array**3 / (np.exp(energy_array / ((const.k_B).to(u.eV / u.K) * radiation_temperature)) - 1.)
+    if not normalise_spectrum:
+        return unnormed_blackbody.to(monocromatic_intensity_unit)
+    else:
+        photon_frequency_normalisation = photon_energy_normalisation / const.h.to(u.eV / u.Hz)
+        normalisation = constant_factor * photon_frequency_normalisation**3 / (np.exp(photon_energy_normalisation / ((const.k_B).to(u.eV / u.K) * radiation_temperature)) - 1.)
+        normed_blackbody = unnormed_blackbody / normalisation
+        return normed_blackbody * monocromatic_intensity_unit
 
 
-def spectrum_flat(energies):
+
+def generate_flat_spectrum(spectrum_length, normalisation_intensity=1):
 
     '''
     Produce a flat spectrum.
     Input:
-        array of photon energies         [eV]
+        spectrum_length: number of the frequency sampling points
+        normalisation_intensity: monochromatic intensity of the spectrum
     Output:
-        array of intensities             [erg/s/Hz/cm^2/sr]
+        flat_spectrum: the spectrum, units: [erg/s/Hz/sr/cm^2]
     '''
 
-    if type(energies)!=u.Quantity:
-        Trad=Trad*u.eV
-    return np.ones_like(energies.value)*u.erg/u.s/u.Hz/u.sr/u.cm**2
+    monocromatic_intensity_unit = u.erg / u.s / u.Hz / u.sr / u.cm**2
+    flat_spectrum = np.ones(shape=spectrum_length) * normalisation_intensity * monocromatic_intensity_unit
+    return flat_spectrum
