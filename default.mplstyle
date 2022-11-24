@@ -1,0 +1,31 @@
+figure.figsize : 10,6
+figure.dpi : 300
+figure.facecolor : white
+font.size : 16
+
+xtick.labelsize : 18
+ytick.labelsize : 18
+xtick.major.pad : 15
+ytick.major.pad : 15
+
+axes.linewidth : 2         # def 0.8
+axes.labelsize : 26
+axes.labelpad : 10         # 4
+
+xtick.major.size : 12      # def 3.5
+xtick.minor.size : 7       # def 2.0
+ytick.major.size : 12      # def 3.5
+ytick.minor.size : 7       # def 2.0
+xtick.major.width : 1.6    # def 0.8
+xtick.minor.width : 1      # def 0.6
+ytick.major.width : 1.6    # def 0.8
+ytick.minor.width : 1      # def 0.6
+
+xtick.direction : in
+ytick.direction : in
+xtick.top : True
+ytick.right : True
+
+legend.fontsize : 16
+legend.edgecolor : black
+legend.framealpha : 1
