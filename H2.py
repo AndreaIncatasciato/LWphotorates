@@ -6,7 +6,8 @@ from astropy import units as u
 
 from scipy.interpolate import InterpolatedUnivariateSpline
 
-from LWphotorates.utils import nu2lambda, lambda2nu, spec_nu2lambda, spec_lambda2nu, cm2eV, eV2cm, cm2K, K2cm
+from LWphotorates.utils import nu2lambda, lambda2nu, spec_lambda2nu
+from LWphotorates.utils import convert_energy_cm2ev, convert_energy_ev2cm, convert_energy_cm2k
 
 import frigus
 from frigus.readers.dataset import DataLoader
@@ -41,8 +42,8 @@ def read_Xstates():
         'J':Xen_db[1],
         'cm':Xen_db[2,0]-Xen_db[2]
     }
-    Xen['eV']=cm2eV(Xen['cm'])
-    Xen['K']=cm2K(Xen['cm'])
+    Xen['eV']=convert_energy_cm2ev(Xen['cm'])
+    Xen['K']=convert_energy_cm2k(Xen['cm'])
     Xen['cm']/=u.cm
 
     return Xen
@@ -228,8 +229,8 @@ def Xpop_frigus(ngas,Tgas):
         'J':np.array(data['j'].tolist()),
         'eV':data['E']-data['E'][0]
     }
-    Xen_Frigus['cm']=eV2cm(Xen_Frigus['eV'])
-    Xen_Frigus['K']=cm2K(Xen_Frigus['cm'])
+    Xen_Frigus['cm']=convert_energy_ev2cm(Xen_Frigus['eV'])
+    Xen_Frigus['K']=convert_energy_cm2k(Xen_Frigus['cm'])
 
     redshift=15.
     cmb_temp=2.72548*(1.+redshift)*u.K    # CMB is only important at very low density when collisions are extremely rare
@@ -427,10 +428,10 @@ def calc_kH2(lambda_array,spectra_lambda,distance,ngas,Tgas,
     if spectra_lambda.ndim==1:
         spectra_lambda=np.atleast_2d(spectra_lambda)
 
-    nu_array=lambda2nu(wl=lambda_array)
+    nu_array=lambda2nu(lambda_array)
     spectra_nu=u.quantity.Quantity(value=np.empty_like(spectra_lambda.value),unit=u.erg/u.s/u.Hz)
     for i in range(len(spectra_lambda)):
-        spectra_nu[i]=spec_lambda2nu(wl=lambda_array,spec_wl=spectra_lambda[i])
+        spectra_nu[i]=spec_lambda2nu(lambda_array, spectra_lambda[i])
 
     intensity_nu=spectra_nu/(4*np.pi*u.sr*4*np.pi*(distance.to(u.cm))**2)
     units_intensity=intensity_nu.unit

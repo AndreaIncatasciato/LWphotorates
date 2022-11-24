@@ -3,9 +3,9 @@ import numpy as np
 from astropy import constants as const
 from astropy import units as u
 
-from LWphotorates.utils import get_ioniz_energy_hydrogen, nu2lambda, lambda2nu ,spec_lambda2nu
-
 from scipy.interpolate import InterpolatedUnivariateSpline
+
+from LWphotorates.utils import get_ioniz_energy_hydrogen, nu2lambda, lambda2nu, spec_lambda2nu
 
 
 def get_cross_section(reference='ML_17'):
@@ -154,10 +154,10 @@ def calc_kHM(lambda_array,spectra_lambda,distance,return_sigma=False,return_sigm
     if spectra_lambda.ndim==1:
         spectra_lambda=np.atleast_2d(spectra_lambda)
 
-    nu_array=lambda2nu(wl=lambda_array)
+    nu_array=lambda2nu(lambda_array)
     spectra_nu=u.quantity.Quantity(value=np.empty_like(spectra_lambda.value),unit=u.erg/u.s/u.Hz)
     for i in range(len(spectra_lambda)):
-        spectra_nu[i]=spec_lambda2nu(wl=lambda_array,spec_wl=spectra_lambda[i])
+        spectra_nu[i]=spec_lambda2nu(lambda_array, spectra_lambda[i])
 
     intensity_nu=spectra_nu/(4.*np.pi*u.sr*4.*np.pi*(distance.to(u.cm))**2)
     units_intensity=intensity_nu.unit

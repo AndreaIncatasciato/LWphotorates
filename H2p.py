@@ -6,7 +6,8 @@ from astropy import units as u
 
 from scipy.interpolate import InterpolatedUnivariateSpline
 
-from LWphotorates.utils import nu2lambda, lambda2nu, spec_nu2lambda, spec_lambda2nu, cm2eV, eV2cm, cm2K, K2cm
+from LWphotorates.utils import nu2lambda, lambda2nu
+from LWphotorates.utils import convert_energy_cm2ev, convert_energy_ev2cm, convert_energy_cm2k
 
 
 
@@ -60,8 +61,8 @@ def read_Babb(wl_new):
         'J':np.array(Babb_j),
         'cm':Babb_en/u.cm
     }
-    Xen['eV']=cm2eV(Xen['cm'])
-    Xen['K']=cm2K(Xen['cm'][0]-Xen['cm'])
+    Xen['eV']=convert_energy_cm2ev(Xen['cm'])
+    Xen['K']=convert_energy_cm2k(Xen['cm'][0]-Xen['cm'])
 
     sigma_pd={
         'sigma':np.array(Babb_sigma)*u.cm**2,
@@ -95,8 +96,8 @@ def read_Zammit(wl_new):
         'J':np.array(Xen[1],dtype=np.int16),
         'eV':Xen[2]*u.rydberg.to(u.eV)*2*u.eV
     }
-    Xen['cm']=eV2cm(Xen['eV'])
-    Xen['K']=cm2K(Xen['cm'][0]-Xen['cm'])
+    Xen['cm']=convert_energy_ev2cm(Xen['eV'])
+    Xen['K']=convert_energy_cm2k(Xen['cm'][0]-Xen['cm'])
 
     Zammit_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2p/Zammit2017.hdf5'
     f=h5py.File(name=Zammit_f,mode='r')
@@ -234,11 +235,11 @@ def calc_kH2p(lambda_array,spectra_lambda,distance,ngas,Tgas,Dunn=False,Zammit=T
     Lyman_lim=(const.h*const.c*const.Ryd).to(u.eV)*const.m_p/(const.m_p+const.m_e)
     minEn=0.1*u.eV
 
-    min_wl=nu2lambda(freq=Lyman_lim/const.h.to(u.eV/u.Hz))[0]
-    max_wl=nu2lambda(freq=minEn/const.h.to(u.eV/u.Hz))[0]
+    min_wl=nu2lambda(Lyman_lim/const.h.to(u.eV/u.Hz))[0]
+    max_wl=nu2lambda(minEn/const.h.to(u.eV/u.Hz))[0]
 
     wl_new=(np.logspace(start=np.log10(min_wl.value),stop=np.log10(max_wl.value),num=int(1e5))*u.angstrom)
-    en_new=lambda2nu(wl=wl_new)*const.h.to(u.eV/u.Hz)
+    en_new=lambda2nu(wl_new)*const.h.to(u.eV/u.Hz)
 
     sigma,heating=calc_sigma(ngas=ngas,Tgas=Tgas,wl_new=wl_new,Dunn=Dunn,Zammit=Zammit)
 
