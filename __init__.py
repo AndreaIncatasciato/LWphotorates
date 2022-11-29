@@ -7,37 +7,51 @@ from LWphotorates import H2p
 
 
 # when doing from ComputeRate import * it will only these
-__all__=['compute_kH2','compute_kHM','compute_kH2p','utils','H2','H2p','HM']
+__all__ = ['compute_kH2', 'compute_kHM', 'compute_kH2p', 'utils', 'H2', 'HM', 'H2p']
 
 
+units_monochromatic_luminosity_wl = __u.erg / __u.s / __u.angstrom
+default_distance = 1. * __u.kpc
 
-def compute_kHM(lambda_array,spectra_lambda,distance=1.*__u.kpc,
-    return_sigma=False,return_sigma_only=False):
+def compute_kHM(
+    wavelength_array,
+    spectra_wl,
+    distance=default_distance,
+    cross_section_reference='ML_17'
+    ):
     
     '''
-    Calculate the photodetachment rate of HM.
+    Calculate the photodetachment rate of HM for a given set of spectra.
     One rate for each spectrum.
     Input:
-        lambda_array: wavelength array associated with the spectra    [A]
-        spectra_lambda: spectra                                       [erg/A/s]
-        distance: distance of the radiating source                    [kpc]
-        return_sigma: the function will return the rate and the cross section
-        return_sigma_only: the function will return the cross section without calculating the rate
+        wavelength_array: wavelength array associated with the spectra    [A]
+        spectra_wl: spectra, as monochromatic luminosity                  [erg/A/s]
+        distance: distance of the radiating source                        [kpc]
+        cross_section_reference: cross section to use, possible choices ['ML_17', 'SK_87', 'J_88', 'C_07']
     Output:
-        detachment rate                                               [1/s]
-        cross section dictionary
+        detachment rate                                                   [1/s]
     '''
     
-    if type(distance)!=__u.Quantity:
-        distance=distance*__u.kpc
+    # checks on units
+    if type(wavelength_array) != __u.Quantity:
+        wavelength_array = wavelength_array * __u.angstrom
+    if type(spectra_wl) != __u.Quantity:
+        spectra_wl = spectra_wl * units_monochromatic_luminosity_wl
+    if type(distance) != __u.Quantity:
+        distance = distance * __u.kpc
 
-    if distance.value<=0:
-        print('wrong distance dumbass!')
+
+    if distance.value <= 0:
+        print('Please provide a positive distance.')
         return -1
     
-# if everything seems reasonable let's move on
-    return HM.calc_kHM(lambda_array=lambda_array,spectra_lambda=spectra_lambda,distance=distance,
-        return_sigma=return_sigma,return_sigma_only=return_sigma_only)
+    # if everything seems reasonable let's move on
+    return HM.calc_kHM(
+        wavelength_array=wavelength_array,
+        spectra_wl=spectra_wl,
+        distance=distance,
+        cross_section_reference=cross_section_reference
+    )
 
 
 
