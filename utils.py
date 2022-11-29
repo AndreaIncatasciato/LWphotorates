@@ -1,6 +1,7 @@
 import numpy as np
 from astropy import constants as const
 from astropy import units as u
+from scipy.interpolate import InterpolatedUnivariateSpline
 
 
 def get_ioniz_energy_hydrogen():
@@ -75,6 +76,39 @@ def spec_lambda2nu(wavelength_array, spectrum_wl):
     speed_of_light = (const.c).to(u.angstrom * u.Hz)
     spectrum_freq = np.atleast_1d(spectrum_wl * wavelength_array**2 / speed_of_light)[::-1]
     return spectrum_freq
+
+
+def interpolate_array(old_x_axis, old_y_axis, new_x_axis):
+
+    '''
+    Change the resolution of an array.
+    Normally used in this code to interpolate spectra to match the resolution of the cross sections.
+    Input:
+        old_x_axis: normally the x axis of the array, for spectra can be either wavelength or frequency
+        old_y_axis: the original array
+        new_x_axis: the target resolution
+    Output:
+        new_y_axis: the new array, with the new resolution
+    '''
+
+    if type(old_y_axis) == u.Quantity:
+        units = old_y_axis.unit
+    else:
+        units = None
+    
+    if old_y_axis.ndim == 1:
+        old_y_axis = np.atleast_2d(old_y_axis)
+    number_of_spectra = old_y_axis.shape[0]
+    new_y_axis = np.empty(shape=(number_of_spectra, len(new_x_axis)))
+
+    for i in range(number_of_spectra):
+        interp = InterpolatedUnivariateSpline(old_x_axis, old_y_axis[i].value, k=1, ext=1)
+        new_y_axis[i] = interp(new_x_axis)
+
+    if units is not None:
+        new_y_axis *= units
+
+    return new_y_axis
 
 
 def convert_energy_cm2ev(energy_cm):
