@@ -221,8 +221,9 @@ def calculate_composite_cross_section(
         gas_temperature: gas temperature in [K]
         cross_section_reference: set which rovib-resolved cross section database to use,
             'Z_17' for Zammit et al. (2017), 'B_15' for Babb (2015)
-        custom_wavelength_array: if using 'B_15', an array of photon wavelength in [A] is needed as input,
-            while 'Z_17' will use the default array of the database
+        custom_wavelength_array: if using 'Z_17', the resulting cross section will be interpolated;
+            this step can be skipped, with the default None value;
+            NB: an array of photon wavelength in [A] is needed if using 'B_15'
         use_franck_condon: boolean, if True use the Franck-Condon distrubution of level population [v=0-18, J=1]
             (see Dunn 1966: https://ui.adsabs.harvard.edu/abs/1966JChPh..44.2592D/abstract)
             instead of the LTE limit
@@ -233,12 +234,12 @@ def calculate_composite_cross_section(
 
     if type(gas_temperature) != u.Quantity:
         gas_temperature = gas_temperature * u.K
+    if (type(custom_wavelength_array) != u.Quantity) & (custom_wavelength_array is not None):
+        custom_wavelength_array = custom_wavelength_array * u.angstrom
 
     if cross_section_reference == 'Z_17':
         ground_states_data = get_cross_section_zammit()
     elif cross_section_reference == 'B_15':
-        if (type(custom_wavelength_array) != u.Quantity) & (custom_wavelength_array is not None):
-            custom_wavelength_array = custom_wavelength_array * u.angstrom
         ground_states_data = get_cross_section_babb(custom_wavelength_array)
 
     if use_franck_condon:
@@ -246,15 +247,20 @@ def calculate_composite_cross_section(
             0.08964, 0.16013, 0.17616, 0.15592, 0.12281, 0.09052, 0.06423, 0.04465, 0.03074,
             0.02111, 0.01451, 0.01002, 0.00694, 0.00480, 0.00329, 0.00221, 0.00139, 0.00072, 0.00018])
         mask = (ground_states_data['J'] == 1) & (ground_states_data['v'] < 19)
-        fc_cross_section = np.dot(np.atleast_2d(fc_partition_function), ground_states_data['cross_section'][mask])[0]
-        fc_heating_cross_section = np.dot(np.atleast_2d(fc_partition_function), ground_states_data['heating_cross_section'][mask])[0]
-        return fc_cross_section, fc_heating_cross_section
-
+        cross_section = np.dot(np.atleast_2d(fc_partition_function), ground_states_data['cross_section'][mask])[0]
+        heating_cross_section = np.dot(np.atleast_2d(fc_partition_function), ground_states_data['heating_cross_section'][mask])[0]
     else:
         lte_partition_function = calculate_partition_function(gas_temperature, ground_states_data)
-        lte_cross_section = np.dot(np.atleast_2d(lte_partition_function), ground_states_data['cross_section'])[0]
-        lte_heating_cross_section = np.dot(np.atleast_2d(lte_partition_function), ground_states_data['heating_cross_section'])[0]
-        return lte_cross_section, lte_heating_cross_section
+        cross_section = np.dot(np.atleast_2d(lte_partition_function), ground_states_data['cross_section'])[0]
+        heating_cross_section = np.dot(np.atleast_2d(lte_partition_function), ground_states_data['heating_cross_section'])[0]
+
+    if (cross_section_reference == 'Z_17') & (custom_wavelength_array is not None):
+        interp_cs = InterpolatedUnivariateSpline(x=ground_states_data['photon_wl'], y=cross_section, k=1)
+        cross_section = interp_cs(custom_wavelength_array, ext='zeros')
+        interp_heating_cs = InterpolatedUnivariateSpline(x=ground_states_data['photon_wl'], y=heating_cross_section, k=1)
+        heating_cross_section = interp_heating_cs(custom_wavelength_array, ext='zeros') * cross_section
+
+    return cross_section, heating_cross_section
 
 
 def calc_kH2p(
