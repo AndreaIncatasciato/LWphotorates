@@ -144,6 +144,36 @@ def get_cross_section_babb(wavelength_array):
     return ground_states_data
 
 
+def calculate_partition_function(gas_temperature, ground_states_data=None, normalised=True):
+
+    '''
+    Calculate the partition function of the electronic ground state X rovib levels in the LTE limit.
+    It depends on the gas temperature and
+    by default it is normalised such that the sum over all the possible levels is 1.
+    
+    Input:
+        gas_temperature: gas temperature in [K]
+        ground_states_data: dictionary with the electronic ground state X rovib levels
+            (if None, the default UGAMOP database will be read beforehand)
+        normalised: boolean, if True the sum over all the possible levels is 1
+    Output:
+        partition_function: array with LTE Boltzmann coefficients that represent the partition function
+    '''
+
+    if type(gas_temperature) != u.Quantity:
+        gas_temperature = gas_temperature * u.K
+
+    if ground_states_data is None:
+        ground_states_data = get_ground_states_data()
+
+    partition_function = (2. - (-1.)**ground_states_data['J']) / 2. * (2. * ground_states_data['J'] + 1.) * np.exp(-ground_states_data['K'] / gas_temperature)
+
+    if normalised:
+        return partition_function / partition_function.sum()
+    else:
+        return partition_function
+
+
 def Xpop(Xen,Tgas):
 
     '''
