@@ -263,6 +263,64 @@ def calculate_composite_cross_section(
     return cross_section, heating_cross_section
 
 
+def calculate_kH2p(
+    wavelength_array,
+    spectra_wl,
+    distance,
+    gas_density,
+    gas_temperature,
+    cross_section_reference='Z_17'
+):
+
+    # determine the (v, J) = (0, 0) cross section
+    if cross_section_reference == 'Z_17':
+        ground_states_data = get_cross_section_zammit()
+        gs_cross_section = ground_states_data['cross_section'][0]
+        gs_heating_cross_section = ground_states_data['heating_cross_section'][0]
+        interp_cs = InterpolatedUnivariateSpline(x=ground_states_data['photon_wl'], y=gs_cross_section, k=1)
+        gs_cross_section = interp_cs(wavelength_array, ext='zeros') * u.cm**2
+        interp_heating_cs = InterpolatedUnivariateSpline(x=ground_states_data['photon_wl'], y=gs_heating_cross_section, k=1)
+        gs_heating_cross_section = interp_heating_cs(wavelength_array, ext='zeros') * gs_cross_section * u.eV
+    elif cross_section_reference == 'B_15':
+        ground_states_data = get_cross_section_babb(wavelength_array)
+        gs_cross_section = ground_states_data['cross_section'][0]
+        gs_heating_cross_section = ground_states_data['heating_cross_section'][0]
+    # determine the LTE cross section
+    lte_cross_section, lte_heating_cross_section = calculate_composite_cross_section(gas_temperature, cross_section_reference, wavelength_array)
+    print(type(lte_cross_section))
+    print(type(lte_heating_cross_section))
+
+    # perform the integrations
+    solid_angle = 4. * np.pi * u.sr
+    surface_area = 4. * np.pi * (distance.to(u.cm))**2
+    intensity_wl = spectra_wl / solid_angle / surface_area
+
+    hc_constant = (const.h).to(u.erg * u.s) * (const.c).to(u.angstrom / u.s)
+    integration_x_axis = wavelength_array
+
+    integration_y_axis = intensity_wl * wavelength_array * gs_cross_section
+    gs_rate = solid_angle / hc_constant * np.trapz(integration_y_axis, integration_x_axis)
+    integration_y_axis = intensity_wl * wavelength_array * lte_cross_section
+    lte_rate = solid_angle / hc_constant * np.trapz(integration_y_axis, integration_x_axis)
+
+    integration_y_axis = intensity_wl * wavelength_array * gs_heating_cross_section
+    gs_heating_rate = solid_angle / hc_constant * np.trapz(integration_y_axis, integration_x_axis)
+    integration_y_axis = intensity_wl * wavelength_array * lte_heating_cross_section
+    lte_heating_rate = solid_angle / hc_constant * np.trapz(integration_y_axis, integration_x_axis)
+
+    # interpolate as in Glover (2015)
+    critical_density = calculate_critical_density(gas_temperature)
+    alpha_exponent = (1. + gas_density / critical_density)**-1
+    dissociation_rate = lte_rate * (gs_rate / lte_rate)**alpha_exponent
+    heating_rate = lte_heating_rate * (gs_heating_rate / lte_heating_rate)**alpha_exponent
+
+    return dissociation_rate, heating_rate
+
+
+
+
+
+
 def calc_kH2p(
     lambda_array,
     spectra_lambda,
@@ -308,7 +366,7 @@ def calc_kH2p(
     wl_new=(np.logspace(start=np.log10(min_wl.value),stop=np.log10(max_wl.value),num=int(1e5))*u.angstrom)
     en_new=lambda2nu(wl_new)*const.h.to(u.eV/u.Hz)
 
-    sigma, heating = calc_sigma(
+    sigma, heating = calc(
         ngas=ngas,
         Tgas=Tgas,
         wl_new=wl_new,
