@@ -43,6 +43,7 @@ def get_cross_section_zammit():
     '''
     Get the H2p (rotovibrational level resolved) cross sections from Zammit et al. (2017),
     together with the kinetic energy released in the gas.
+    Reference: https://ui.adsabs.harvard.edu/abs/2017ApJ...851...64Z/abstract
     Output:
         ground_states_data: dictionary with:
 
@@ -76,6 +77,7 @@ def get_cross_section_babb(wavelength_array):
     '''
     Get the H2p (rotovibrational level resolved) cross sections from Babb (2015),
     together with the kinetic energy released in the gas.
+    Reference: https://ui.adsabs.harvard.edu/abs/2015ApJS..216...21B/abstract
     NB: they included only a subset of all the rovib levels of the electronic ground state,
     so here we are including only data relative to those levels.
     Output:
@@ -174,32 +176,34 @@ def calculate_partition_function(gas_temperature, ground_states_data=None, norma
         return partition_function
 
 
-def calc_ncrit(Tgas):
+def calculate_critical_density(gas_temperature):
 
     '''
-    Compute the critical density for the LTE limit as proposed in Glover 2015.
+    Compute the critical density for the LTE limit as proposed in Glover 2015 appendix B1.2:
+    https://ui.adsabs.harvard.edu/abs/2015MNRAS.451.2082G/abstract.
     Assume a neutral gas with standard composition.
-    Main colliders: H and e.
+    Main colliders: H and free electrons (see Glover & Savin, 2009: https://ui.adsabs.harvard.edu/abs/2009MNRAS.393..911G/abstract).
     Input:
-        Tgas       [K]
+        gas_temperature: the gas temperature, in [K]
     Output:
-        ncrit      [1/cm^3]
+        critical_density: the critical density for H2+, in [1/cm^3]
     '''
 
-    if type(Tgas)==u.Quantity:
-        Tgas=Tgas.value
+    if type(gas_temperature) != u.Quantity:
+        gas_temperature = gas_temperature * u.K
 
-# assume composition
-    XHe=0.08
-    XH2=1e-4
-    XH=1.-2*XH2
-    Xe=0.01
+# assume composition, all numbers normalised to the number density of H atoms (H + H2)
+    He_number_fraction = 0.08
+    H2_number_fraction = 1e-4
+    H_number_fraction = 1. - 2. * H2_number_fraction
+    em_number_fraction = 0.01
 
-# critical densities, assume main colliders are H and e
+# to calculate the critical densities assume the main colliders are H and free electrons
 # (see Glover & Savin 2009 and Glover 2015)
-    ncrH=400.*(Tgas/1e4)**(-1)*u.cm**-3
-    ncre=50.*u.cm**-3
-    return ((XH+Xe)*(XH/ncrH+Xe/ncre)**(-1))
+    critical_density_H = 400. * (gas_temperature / (1e4 * u.K))**(-1) * u.cm**-3
+    critical_density_em = 50. * u.cm**-3
+    critical_density = ((H_number_fraction + em_number_fraction) * (H_number_fraction / critical_density_H + em_number_fraction / critical_density_em)**(-1))
+    return critical_density
 
 
 def calc_sigma(
