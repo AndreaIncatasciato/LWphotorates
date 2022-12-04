@@ -206,50 +206,55 @@ def calculate_critical_density(gas_temperature):
     return critical_density
 
 
-def calc_sigma(
-    ngas,
-    Tgas,
-    wl_new,
-    Dunn,
-    cross_section_reference='Z_17'
-    ):
+def calculate_composite_cross_section(
+    gas_temperature=1e3*u.K,
+    cross_section_reference='Z_17',
+    custom_wavelength_array=None,
+    use_franck_condon=False
+):
 
     '''
-    Given gas density and temperature, calculate the effective cross section to compute the dissociation rate and the heating rate.
-    Interpolate between GS and LTE limit.
+    Calculate the composite cross section for a given gas temperature,
+    considering all the rotovibrational levels of the electronic ground state.
+    Calculate the partition function in the LTE limit or with the Franck-Condon distribution.
     Input:
-        ngas: gas number density                                           [1/cm^3]
-        Tgas: gas temperature                                              [K]
-        wavelength: array of wavelengths for the integration               [A]
-        Dunn: boolean, True if you want to use the Franck-Condon distrubution of level population [v=0-18,J=1]
-        Zammit: boolean, True to use the more updated cross section db from Zammit+2017, False to use Babb2015
+        gas_temperature: gas temperature in [K]
+        cross_section_reference: set which rovib-resolved cross section database to use,
+            'Z_17' for Zammit et al. (2017), 'B_15' for Babb (2015)
+        custom_wavelength_array: if using 'B_15', an array of photon wavelength in [A] is needed as input,
+            while 'Z_17' will use the default array of the database
+        use_franck_condon: boolean, if True use the Franck-Condon distrubution of level population [v=0-18, J=1]
+            (see Dunn 1966: https://ui.adsabs.harvard.edu/abs/1966JChPh..44.2592D/abstract)
+            instead of the LTE limit
     Output:
-        sigma: effective cross section, same size as wavelength            [cm^2]
-        heat: effective 'heating' cross section, same size as wavelength   [cm^2 eV]
+        cross_section: composite cross section in [cm^2]
+        heating_cross_section: composite 'heating' cross section in [eV cm^2]
     '''
+
+    if type(gas_temperature) != u.Quantity:
+        gas_temperature = gas_temperature * u.K
 
     if cross_section_reference == 'Z_17':
         ground_states_data = get_cross_section_zammit()
     elif cross_section_reference == 'B_15':
-        ground_states_data = get_cross_section_babb(wavelength_array=wl_new)
+        if (type(custom_wavelength_array) != u.Quantity) & (custom_wavelength_array is not None):
+            custom_wavelength_array = custom_wavelength_array * u.angstrom
+        ground_states_data = get_cross_section_babb(custom_wavelength_array)
 
-    if Dunn:
-        FCpop=np.array([0.08964,0.16013,0.17616,0.15592,0.12281,0.09052,0.06423,0.04465,0.03074,0.02111,0.01451,0.01002,0.00694,0.00480,0.00329,0.00221,0.00139,0.00072,0.00018])
-        sigma_FC=np.dot(np.atleast_2d(FCpop),sigma_pd['sigma'][Xen['J']==1][:-1])[0]
-        heat_FC=np.dot(np.atleast_2d(FCpop),sigma_pd['heat_sigma'][Xen['J']==1][:-1])[0]
-        return sigma_FC,heat_FC
+    if use_franck_condon:
+        fc_partition_function = np.array([
+            0.08964, 0.16013, 0.17616, 0.15592, 0.12281, 0.09052, 0.06423, 0.04465, 0.03074,
+            0.02111, 0.01451, 0.01002, 0.00694, 0.00480, 0.00329, 0.00221, 0.00139, 0.00072, 0.00018])
+        mask = (ground_states_data['J'] == 1) & (ground_states_data['v'] < 19)
+        fc_cross_section = np.dot(np.atleast_2d(fc_partition_function), ground_states_data['cross_section'][mask])[0]
+        fc_heating_cross_section = np.dot(np.atleast_2d(fc_partition_function), ground_states_data['heating_cross_section'][mask])[0]
+        return fc_cross_section, fc_heating_cross_section
 
     else:
-        sigma_GS=sigma_pd['sigma'][0]
-        heat_GS=sigma_pd['heat_sigma'][0]
-        NX=Xpop(Xen=Xen,Tgas=Tgas)
-        sigma_LTE=np.dot(np.atleast_2d(NX),sigma_pd['sigma'])[0]
-        heat_LTE=np.dot(np.atleast_2d(NX),sigma_pd['heat_sigma'])[0]
-        ncrit=calc_ncrit(Tgas=Tgas)
-        alpha=(1+ngas/ncrit)**(-1)
-        sigma=sigma_LTE*(sigma_GS/sigma_LTE)**alpha
-        heat=heat_LTE*(heat_GS/heat_LTE)**alpha
-        return sigma,heat
+        lte_partition_function = calculate_partition_function(gas_temperature, ground_states_data)
+        lte_cross_section = np.dot(np.atleast_2d(lte_partition_function), ground_states_data['cross_section'])[0]
+        lte_heating_cross_section = np.dot(np.atleast_2d(lte_partition_function), ground_states_data['heating_cross_section'])[0]
+        return lte_cross_section, lte_heating_cross_section
 
 
 def calc_kH2p(
