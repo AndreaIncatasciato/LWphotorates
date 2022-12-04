@@ -174,26 +174,6 @@ def calculate_partition_function(gas_temperature, ground_states_data=None, norma
         return partition_function
 
 
-def Xpop(Xen,Tgas):
-
-    '''
-    Define the population of the electronic ground state X rovib levels in the LTE limit.
-    The population level is just a number between 0 and 1, the array is normalised to 1.
-    Input:
-        Tgas: gas temperature      [K]
-        Xen: dictionary with the electronic ground state X rovib levels
-    Output:
-        NX: array with LTE Boltzmann coefficients
-    '''
-
-    if type(Tgas)==u.Quantity:
-        Tgas=Tgas.value
-    
-    NX=(2-(-1)**Xen['J'])*(2*Xen['J']+1)*np.exp(-Xen['K'].value/Tgas)
-    NX/=NX.sum()
-    return NX
-
-
 def calc_ncrit(Tgas):
 
     '''
