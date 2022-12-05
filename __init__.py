@@ -12,13 +12,16 @@ __all__ = ['compute_kH2', 'compute_kHM', 'compute_kH2p', 'utils', 'H2', 'HM', 'H
 
 units_monochromatic_luminosity_wl = __u.erg / __u.s / __u.angstrom
 default_distance = 1. * __u.kpc
+default_density = 1e2 * __u.cm**-3
+default_temperature = 1e3 * __u.K
 
-def compute_kHM(
+
+def compute_HM_detach_rate(
     wavelength_array,
     spectra_wl,
     distance=default_distance,
     cross_section_reference='ML_17'
-    ):
+):
     
     '''
     Calculate the photodetachment rate of HM for a given set of spectra.
@@ -57,55 +60,64 @@ def compute_kHM(
 
 
 
-def compute_kH2p(lambda_array,spectra_lambda,distance=1.*__u.kpc,ngas=1e2*__u.cm**-3,Tgas=1e3*__u.K,
-    Dunn=False,Zammit=True,
-    return_sigma=False,return_heating=False,
-    return_sigma_only=False,return_heating_only=False):
+def compute_H2p_diss_rate(
+    wavelength_array,
+    spectra_wl,
+    distance=default_distance,
+    gas_density=default_density,
+    gas_temperature=default_temperature,
+    cross_section_reference='Z_17'
+):
     
     '''
-    Calculate the photodissociation rate of H2p and its associated heating rate.
-    One rate for each spectrum.
+    Calculate the photodissociation rate of H2p and the corresponding heating rate.
+    The rate is interpolated between the low density limit (where only the rotovibrational ground level is populated)
+    and the LTE limit, as in Glover (2015): https://ui.adsabs.harvard.edu/abs/2015MNRAS.451.2082G/abstract.
+    The critical density for LTE is assumed as for a neutral gas with standard composition.
+    One rate for each spectrum. This is just a wrapper of the main function.
     Input:
-        lambda_array: wavelength array associated with the spectra    [A]
-        spectra_lambda: spectra                                       [erg/A/s]
-        distance: distance of the radiating source                    [kpc]
-        ngas: gas number density                                      [1/cm^3]
-        Tgas: gas temperature                                         [K]
-        Dunn: boolean, True if you want to use the Frank-Condon distrubution of level population [v=0-18,J=1]
-        Zammit: boolean, True to use the more updated cross section db from Zammit+2017, False to use Babb2015
-        return_sigma: the function will return diss rate, heating rate and the effective cross section
-        return_heating: the function will return diss rate, heating rate and the monochromatic heating rate
-        return_sigma_only: the function will return the effective cross section without calculating the diss rate
-        return_heating_only: the function will return the monochromatic heating rate without calculating the diss rate
+        wavelength_array: wavelength array associated with the spectra in [A]
+        spectra_wl: spectra, as monochromatic luminosity in [erg/A/s]
+        distance: distance of the radiating source in [kpc]
+        cross_section_reference: cross section to use, possible choices ['Z_17', 'B_15']
+        gas_density: gas number density in [1/cm^3]
+        gas_temperature: gas temperature in [K]
     Output:
-        dissociation rate and heating rate, both interpolated between GS and LTE limits
-        effective cross section
-        monochromatic heating rate
-        high-resolution wavelength array                              [A]
+        dissociation_rate: dissociation rate in [1/s]
+        heating_rate: heating rate in [eV/s]
     '''
     
-    if type(distance)!=__u.Quantity:
-        distance=distance*__u.kpc
-    if type(ngas)!=__u.Quantity:
-        ngas=ngas*__u.cm**-3
-    if type(Tgas)!=__u.Quantity:
-        Tgas=Tgas*__u.K
+    # checks on units
+    if type(wavelength_array) != __u.Quantity:
+        wavelength_array = wavelength_array * __u.angstrom
+    if type(spectra_wl) != __u.Quantity:
+        spectra_wl = spectra_wl * units_monochromatic_luminosity_wl
+    if type(distance) != __u.Quantity:
+        distance = distance * __u.kpc
+    if type(gas_density) != __u.Quantity:
+        gas_density = gas_density * __u.cm**-3
+    if type(gas_temperature) != __u.Quantity:
+        gas_temperature = gas_temperature * __u.K
 
-    if distance.value<=0:
-        print('wrong distance dumbass!')
+    if distance.value <= 0:
+        print('Please provide a strictly positive distance.')
         return -1
-    if ngas.value<=0:
-        print('wrong gas density dumbass!')
+    if gas_density.value <= 0:
+        print('Please provide a strictly positive gas number density.')
         return -1
-    if Tgas.value<=0:
-        print('wrong gas temperature dumbass!')
+    if gas_temperature.value <= 0:
+        print('Please provide a strictly positive gas temperature.')
         return -1
     
-# if everything seems reasonable let's move on
-    return H2p.calc_kH2p(lambda_array=lambda_array,spectra_lambda=spectra_lambda,distance=distance,ngas=ngas,Tgas=Tgas,
-        Dunn=Dunn,Zammit=Zammit,
-        return_sigma=return_sigma,return_heating=return_heating,
-        return_sigma_only=return_sigma_only,return_heating_only=return_heating_only)
+    # if everything seems reasonable let's move on
+    return H2p.calculate_kH2p(
+        wavelength_array=wavelength_array,
+        spectra_wl=spectra_wl,
+        distance=distance,
+        gas_density=gas_density,
+        gas_temperature=gas_temperature,
+        cross_section_reference=cross_section_reference
+    )
 
 
 
