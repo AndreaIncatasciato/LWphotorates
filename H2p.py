@@ -256,9 +256,9 @@ def calculate_composite_cross_section(
 
     if (cross_section_reference == 'Z_17') & (custom_wavelength_array is not None):
         interp_cs = InterpolatedUnivariateSpline(x=ground_states_data['photon_wl'], y=cross_section, k=1)
-        cross_section = interp_cs(custom_wavelength_array, ext='zeros')
+        cross_section = interp_cs(custom_wavelength_array, ext='zeros') * u.cm**2
         interp_heating_cs = InterpolatedUnivariateSpline(x=ground_states_data['photon_wl'], y=heating_cross_section, k=1)
-        heating_cross_section = interp_heating_cs(custom_wavelength_array, ext='zeros') * cross_section
+        heating_cross_section = interp_heating_cs(custom_wavelength_array, ext='zeros') * u.eV * u.cm**2
 
     return cross_section, heating_cross_section
 
@@ -272,6 +272,23 @@ def calculate_kH2p(
     cross_section_reference='Z_17'
 ):
 
+    '''
+    Calculate the photodissociation rate of H2p and the corresponding heating rate.
+    The rate is interpolated between the low density limit (where only the rotovibrational ground level is populated)
+    and the LTE limit, as in Glover (2015): https://ui.adsabs.harvard.edu/abs/2015MNRAS.451.2082G/abstract.
+    The critical density for LTE is assumed as for a neutral gas with standard composition.
+    Input:
+        wavelength_array: wavelength array associated with the spectra in [A]
+        spectra_wl: spectra, as monochromatic luminosity in [erg/A/s]
+        distance: distance of the radiating source in [kpc]
+        cross_section_reference: cross section to use, possible choices ['Z_17', 'B_15']
+        gas_density: gas number density in [1/cm^3]
+        gas_temperature: gas temperature in [K]
+    Output:
+        dissociation_rate: dissociation rate in [1/s]
+        heating_rate: heating rate in [eV/s]
+    '''
+
     # determine the (v, J) = (0, 0) cross section
     if cross_section_reference == 'Z_17':
         ground_states_data = get_cross_section_zammit()
@@ -280,15 +297,13 @@ def calculate_kH2p(
         interp_cs = InterpolatedUnivariateSpline(x=ground_states_data['photon_wl'], y=gs_cross_section, k=1)
         gs_cross_section = interp_cs(wavelength_array, ext='zeros') * u.cm**2
         interp_heating_cs = InterpolatedUnivariateSpline(x=ground_states_data['photon_wl'], y=gs_heating_cross_section, k=1)
-        gs_heating_cross_section = interp_heating_cs(wavelength_array, ext='zeros') * gs_cross_section * u.eV
+        gs_heating_cross_section = interp_heating_cs(wavelength_array, ext='zeros') * u.eV * u.cm**2
     elif cross_section_reference == 'B_15':
         ground_states_data = get_cross_section_babb(wavelength_array)
         gs_cross_section = ground_states_data['cross_section'][0]
         gs_heating_cross_section = ground_states_data['heating_cross_section'][0]
     # determine the LTE cross section
     lte_cross_section, lte_heating_cross_section = calculate_composite_cross_section(gas_temperature, cross_section_reference, wavelength_array)
-    print(type(lte_cross_section))
-    print(type(lte_heating_cross_section))
 
     # perform the integrations
     solid_angle = 4. * np.pi * u.sr
