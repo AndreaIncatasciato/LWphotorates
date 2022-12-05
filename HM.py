@@ -102,17 +102,22 @@ def get_cross_section(reference='ML_17'):
 
 
 
-def calc_kHM(wavelength_array, spectra_wl, distance, cross_section_reference='ML_17'):
+def calculate_kHM(
+    wavelength_array,
+    spectra_wl,
+    distance,
+    cross_section_reference='ML_17'
+):
 
     '''
-    This function computes the HM detachment rate.
-
+    Compute the photodetachment rate of HM.
     Input:
-        lambda_array: wavelength array associated with the spectra    [A]
-        spectra_lambda: spectra                                       [erg/A/s]
-        distance: distance of the radiating source                    [kpc]
+        wavelength_array: wavelength array associated with the spectra in [A]
+        spectra_wl: spectra, as monochromatic luminosity in [erg/A/s]
+        distance: distance of the radiating source in [kpc]
+        cross_section_reference: cross section to use, possible choices ['ML_17', 'SK_87', 'J_88', 'C_07']
     Output:
-        photodetachment rate                                          [1/s]
+        detachment_rate: detachment rate in [1/s]
     '''
 
     cross_section = get_cross_section(reference=cross_section_reference)
@@ -144,6 +149,6 @@ def calc_kHM(wavelength_array, spectra_wl, distance, cross_section_reference='ML
 
     integration_x_axis = cross_section['frequency']
     integration_y_axis = cross_section['cross_section'] * new_intensity_freq / cross_section['energy'].to(u.erg)
-    rate = solid_angle * np.trapz(integration_y_axis, integration_x_axis)
+    dissociation_rate = solid_angle * np.trapz(integration_y_axis, integration_x_axis)
 
-    return rate
+    return dissociation_rate
