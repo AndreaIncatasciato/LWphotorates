@@ -7,13 +7,14 @@ from LWphotorates import H2p
 
 
 # when doing from ComputeRate import * it will only these
-__all__ = ['compute_kH2', 'compute_kHM', 'compute_kH2p', 'utils', 'H2', 'HM', 'H2p']
+__all__ = ['compute_kH2', 'compute_HM_detach_rate', 'compute_H2p_diss_rate', 'utils', 'H2', 'HM', 'H2p']
 
 
 units_monochromatic_luminosity_wl = __u.erg / __u.s / __u.angstrom
 default_distance = 1. * __u.kpc
 default_density = 1e2 * __u.cm**-3
 default_temperature = 1e3 * __u.K
+
 
 
 def compute_HM_detach_rate(
@@ -25,14 +26,14 @@ def compute_HM_detach_rate(
     
     '''
     Calculate the photodetachment rate of HM for a given set of spectra.
-    One rate for each spectrum.
+    One rate for each spectrum. This is just a wrapper of the main function.
     Input:
-        wavelength_array: wavelength array associated with the spectra    [A]
-        spectra_wl: spectra, as monochromatic luminosity                  [erg/A/s]
-        distance: distance of the radiating source                        [kpc]
+        wavelength_array: wavelength array associated with the spectra in [A]
+        spectra_wl: spectra, as monochromatic luminosity in [erg/A/s]
+        distance: distance of the radiating source in [kpc]
         cross_section_reference: cross section to use, possible choices ['ML_17', 'SK_87', 'J_88', 'C_07']
     Output:
-        detachment rate                                                   [1/s]
+        detachment_rate: detachment rate in [1/s]
     '''
     
     # checks on units
@@ -43,13 +44,12 @@ def compute_HM_detach_rate(
     if type(distance) != __u.Quantity:
         distance = distance * __u.kpc
 
-
     if distance.value <= 0:
-        print('Please provide a positive distance.')
+        print('Please provide a strictly positive distance.')
         return -1
     
     # if everything seems reasonable let's move on
-    return HM.calc_kHM(
+    return HM.calculate_kHM(
         wavelength_array=wavelength_array,
         spectra_wl=spectra_wl,
         distance=distance,
@@ -70,7 +70,7 @@ def compute_H2p_diss_rate(
 ):
     
     '''
-    Calculate the photodissociation rate of H2p and the corresponding heating rate.
+    Calculate the photodissociation rate of H2p and the corresponding heating rate for a given set of spectra.
     The rate is interpolated between the low density limit (where only the rotovibrational ground level is populated)
     and the LTE limit, as in Glover (2015): https://ui.adsabs.harvard.edu/abs/2015MNRAS.451.2082G/abstract.
     The critical density for LTE is assumed as for a neutral gas with standard composition.
