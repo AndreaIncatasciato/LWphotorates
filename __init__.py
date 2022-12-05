@@ -179,7 +179,7 @@ def compute_kH2(lambda_array,spectra_lambda,distance=1.*__u.kpc,ngas=1e2*__u.cm*
         print('wrong gas temperature dumbass!')
         return -1
     
-# if everything seems reasonable let's move on
+    # if everything seems reasonable let's move on
     return H2.calc_kH2(lambda_array=lambda_array,spectra_lambda=spectra_lambda,distance=distance,ngas=ngas,Tgas=Tgas,
         return_sigma=return_sigma,return_heating=return_heating,return_sigma_only=return_sigma_only,return_heating_only=return_heating_only,
         db_touse=db_touse,exstates_touse=exstates_touse,lineprofile_touse=lineprofile_touse,

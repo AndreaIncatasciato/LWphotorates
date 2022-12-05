@@ -6,8 +6,8 @@ from astropy import units as u
 
 from scipy.interpolate import InterpolatedUnivariateSpline
 
-from LWphotorates.utils import nu2lambda, lambda2nu
-from LWphotorates.utils import convert_energy_cm2ev, convert_energy_ev2cm, convert_energy_cm2k
+from LWphotorates.utils import lambda2nu
+from LWphotorates.utils import convert_energy_ev2cm, convert_energy_cm2k
 
 
 def get_ground_states_data():
@@ -192,14 +192,14 @@ def calculate_critical_density(gas_temperature):
     if type(gas_temperature) != u.Quantity:
         gas_temperature = gas_temperature * u.K
 
-# assume composition, all numbers normalised to the number density of H atoms (H + H2)
+    # assume composition, all numbers normalised to the number density of H atoms (H + H2)
     He_number_fraction = 0.08
     H2_number_fraction = 1e-4
     H_number_fraction = 1. - 2. * H2_number_fraction
     em_number_fraction = 0.01
 
-# to calculate the critical densities assume the main colliders are H and free electrons
-# (see Glover & Savin 2009 and Glover 2015)
+    # to calculate the critical densities assume the main colliders are H and free electrons
+    # (see Glover & Savin 2009 and Glover 2015)
     critical_density_H = 400. * (gas_temperature / (1e4 * u.K))**(-1) * u.cm**-3
     critical_density_em = 50. * u.cm**-3
     critical_density = ((H_number_fraction + em_number_fraction) * (H_number_fraction / critical_density_H + em_number_fraction / critical_density_em)**(-1))
