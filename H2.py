@@ -16,10 +16,67 @@ from frigus.population import population_density_at_steady_state
 from astropy.modeling.models import Voigt1D
 
 
+def get_ground_states_data():
+
+    '''
+    Get the H2 rotovibrational levels data of the electronic ground state
+    from Komasa et al. (2011): https://ui.adsabs.harvard.edu/abs/2011JCTC....7.3105K/abstract
+    Output:
+        ground_states_data: dictionary with:
+            'v': vibrational quantum number
+            'J': rotational quantum number
+            'eV': level energy in [eV]
+            'cm': level energy in [1/cm]
+            'K': equivalent temperature wrt the (0, 0) level (useful for the LTE partition function)
+    '''
+
+    ground_states_path = os.path.join(os.path.dirname(__file__), 'inputdata', 'H2', 'Xgroundstate', 'vibrotXenergy_Komasa+2011.txt')
+    ground_states_file = np.loadtxt(ground_states_path, unpack=True)
+    ground_states_data = {
+        'v': np.array(ground_states_file[0], dtype=np.int16),
+        'J': np.array(ground_states_file[1], dtype=np.int16),
+        'cm': ground_states_file[2] / u.cm
+    }
+    ground_states_data['eV'] = convert_energy_cm2ev(ground_states_data['cm'])
+    ground_states_data['K'] = convert_energy_cm2k(ground_states_data['cm'][0] - ground_states_data['cm'])
+
+    return ground_states_data
+
+
+def calculate_partition_function(gas_temperature, ground_states_data=None, normalised=True):
+
+    '''
+    Calculate the partition function of the electronic ground state X rovib levels in the LTE limit.
+    It depends on the gas temperature and
+    by default it is normalised such that the sum over all the possible levels is 1.
+    
+    Input:
+        gas_temperature: gas temperature in [K]
+        ground_states_data: dictionary with the electronic ground state X rovib levels
+            (if None, the default Komasa database will be read beforehand)
+        normalised: boolean, if True the sum over all the possible levels is 1
+    Output:
+        partition_function: array with LTE Boltzmann coefficients that represent the partition function
+    '''
+
+    if type(gas_temperature) != u.Quantity:
+        gas_temperature = gas_temperature * u.K
+
+    if ground_states_data is None:
+        ground_states_data = get_ground_states_data()
+
+    partition_function = (2. - (-1.)**ground_states_data['J']) / 2. * (2. * ground_states_data['J'] + 1.) * np.exp(-ground_states_data['K'] / gas_temperature)
+
+    if normalised:
+        return partition_function / partition_function.sum()
+    else:
+        return partition_function
+
+
 def read_Xstates():
     
     '''
-    This function reads the file from Komasa+2011,
+    This function reads the file from Komasa et al. (2011)
     with energies of the rotovibrational levels of the electronic ground state X.
 
     Structure of the input file (3 cols):
