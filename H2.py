@@ -118,118 +118,133 @@ def call_to_frigus(gas_density, gas_temperature, redshift_for_cmb=15.):
     return frigus_ground_states_data, frigus_partition_function
 
 
-def join_dbs(path,all_transitions):
+def append_lw_transitions(lw_transitions_dictionary, new_file_path):
 
     '''
     Append a list of LW transitions to the general dictionary.
     Input:
-        path is the path to the file with the transitions (its structure is fixed)
-        all_transitions is the dictionary with the same structure as the input files
-    Output: nothing
+        lw_transitions_dictionary: the dictionary of all LW transitions to consider
+        new_file_path: path to the hdf5 file with the LW transitions to add
     '''
 
-    trans_db=h5py.File(name=path,mode='r')
-    for i in list(all_transitions.keys()):
-        all_transitions[i]=np.concatenate((all_transitions[i],trans_db[i]))
-    trans_db.close()
+    with h5py.File(new_file_path, mode='r') as lw_transitions_to_add:
+        for i in list(lw_transitions_dictionary.keys()):
+            lw_transitions_dictionary[i] = np.concatenate((lw_transitions_dictionary[i], lw_transitions_to_add[i]))
 
 
-def read_transitions(db_touse,exstates_touse):
+def get_lw_transitions(excited_states_to_use, lw_transitions_reference):
 
     '''
-    This function reads the transitions database.
+    This function reads the LW transitions databases and saves everything in a dictionary.
     Input:
-        db_touse: which database is employed; available choices are 'A94','U19','U19+S15'
-            'A94' is the classical db from Abgrall+1993a,b,c,Abgrall+1994, the most complete
-            'U19' is the db from Ubachs+2019, with B+/C+/C- states; it has transitions only from X states with v=0,J=0-7 so good at low temperatures
-            'U19+S15' joins Ubachs+2019 with Salumbides+2015, with B+/C+/C- states; it has transitions a good number of LW transitions, good compromise
-        exstates_touse: which excited electronic states are taken into account; available choices are 'B','C','LW','additional','all'
-            'B' means only B+ states (the 'Lyman' lines), available for all the datasets provided
-            'C' means only C+ and C- states (the 'Werner' lines), available for all the datasets provided
-            'LW' means B+/C+/C- states (all the 'Lyman-Werner' lines), available for all the datasets provided
-            'additional' means only B'+/D+/D- states (that are usually neglected), available only for the Abgrall+1994 db
-            'all' means all six states (B+/C+/C-/B'+/D+/D-), available only for the Abgrall+1994 db
+        excited_states_to_use: which excited electronic states are taken into account;
+            available choices are ['B', 'C', 'LW', 'additional', 'all']:
+                'B': only B+ states (the 'Lyman' lines), available for all the datasets
+                'C': only C+ and C- states (the 'Werner' lines), available for all the datasets
+                'LW': B+/C+/C- states (all the 'Lyman-Werner' lines), available for all the datasets
+                'additional': only B'+/D+/D- states (usually neglected), available only for Abgrall et al. (1994)
+                'all': all six states (B+/C+/C-/B'+/D+/D-), available only for Abgrall et al. (1994)
+        lw_transitions_reference: which database is employed;
+            available choices are ['A_94', 'U_19', 'U_19+S_15']:
+                'A_94': the most complete and widely used database
+                    Abgrall et al. (1993a) https://ui.adsabs.harvard.edu/abs/1993A%26AS..101..273A/abstract
+                    Abgrall et al. (1993b) https://ui.adsabs.harvard.edu/abs/1993A%26AS..101..323A/abstract
+                    Abgrall et al. (1993c) https://ui.adsabs.harvard.edu/abs/1994CaJPh..72..856A/abstract
+                    Abgrall et al. (1994) https://ui.adsabs.harvard.edu/abs/1993JMoSp.157..512A/abstract
+                    Abgrall et al. (2000) https://ui.adsabs.harvard.edu/abs/2000A%26AS..141..297A/abstract
+                'U_19': Ubachs et al. (2019) https://ui.adsabs.harvard.edu/abs/2019A%26A...622A.127U/abstract
+                    B+/C+/C- states, transitions only from ground state levels with v=0, J=0-7,
+                    recently updated and corrected; appropriate at low temperatures
+                'U_19+S_15': join U_19 with Salumbides et al. (2015) https://ui.adsabs.harvard.edu/abs/2015MNRAS.450.1237S/abstract
+                    B+/C+/C- states, complementary to U_19, recently updated and corrected
     Output:
-        a dictionary with the following data for each transition:
-            VL: vibrational quantum number of the X state
-            JL: rotational quantum number of the X state
+        lw_transitions_dictionary: dictionary with the following data for each transition:
+            VL: vibrational quantum number of the electronic ground state
+            JL: rotational quantum number of the electronic ground state
             VU: vibrational quantum number of the excited state
             JU: rotational quantum number of the excited state
-            wl: wavelength of the transition                                                   [A]
+            wl: wavelength of the transition, in [A]
+            freq: frequency of the transition, in [Hz]
             f: oscillator strength
-            Gamma: natural broadening parameter                                                [1/s]
+            Gamma: natural broadening parameter in [1/s]
             frac_diss: fraction of excited molecules that will dissociate
-            mean_Ekin: mean kinetic energy of the H atoms (heating of the gas per molecule)    [eV]
+            mean_Ekin: mean kinetic energy of the H atoms (heating of the gas per molecule), in [eV]
     '''
 
-    all_transitions={
-        'VL':np.array([]),
-        'JL':np.array([]),
-        'VU':np.array([]),
-        'JU':np.array([]),
-        'wl':np.array([]),
-        'f':np.array([]),
-        'Gamma':np.array([]),
-        'frac_diss':np.array([]),
-        'mean_Ekin':np.array([])    
+    # the structure of the dictionary cannot be changed, as it is the same as the hdf5 files
+    lw_transitions_dictionary = {
+        'VL': np.array([]),
+        'JL': np.array([]),
+        'VU': np.array([]),
+        'JU': np.array([]),
+        'wl': np.array([]),
+        'f': np.array([]),
+        'Gamma': np.array([]),
+        'frac_diss': np.array([]),
+        'mean_Ekin': np.array([])    
     }
 
-    if (exstates_touse=='B')|(exstates_touse=='LW'):
-        if (db_touse=='U19')|(db_touse=='U19+S15'):
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Bp_Ubachs+2019.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-            if db_touse=='U19+S15':
-                trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Bp_Salumbides+2015.hdf5'
-                join_dbs(path=trans_db_f,all_transitions=all_transitions)
-        elif db_touse=='A94':
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Bp_Abgrall+1994.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-    if (exstates_touse=='C')|(exstates_touse=='LW'):
-        if (db_touse=='U19')|(db_touse=='U19+S15'):
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Cp_Ubachs+2019.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Cm_Ubachs+2019.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-            if db_touse=='U19+S15':
-                trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Cp_Salumbides+2015.hdf5'
-                join_dbs(path=trans_db_f,all_transitions=all_transitions)
-                trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Cm_Salumbides+2015.hdf5'
-                join_dbs(path=trans_db_f,all_transitions=all_transitions)
-        elif db_touse=='A94':
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Cp_Abgrall+1994.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Cm_Abgrall+1994.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-    if exstates_touse=='additional':
-        if (db_touse=='U19')|(db_touse=='U19+S15'):
-            print('Error! Ubachs and/or Salumbides dbs have only B+, C+ and C- transitions')
-        elif db_touse=='A94':
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Bprime_Abgrall+1994.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Dp_Abgrall+1994.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Dm_Abgrall+1994.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-    if exstates_touse=='all':
-        if (db_touse=='U19')|(db_touse=='U19+S15'):
-            print('Error! Ubachs and/or Salumbides dbs have only B+, C+ and C- transitions')
-        elif db_touse=='A94':
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Bp_Abgrall+1994.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Cp_Abgrall+1994.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Cm_Abgrall+1994.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Bprime_Abgrall+1994.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Dp_Abgrall+1994.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
-            trans_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/transitions/cleaned/Dm_Abgrall+1994.hdf5'
-            join_dbs(path=trans_db_f,all_transitions=all_transitions)
+    data_folder = os.path.join(os.path.dirname(__file__), 'inputdata', 'H2', 'transitions', 'cleaned')
 
-    all_transitions['freq']=const.c.to(u.angstrom*u.Hz)/(all_transitions['wl']*u.angstrom)
+    if (excited_states_to_use == 'B') | (excited_states_to_use == 'LW'):
+        if (lw_transitions_reference == 'U_19') | (lw_transitions_reference == 'U_19+S_15'):
+            data_path = os.path.join(data_folder, 'Bp_Ubachs+2019.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+            if lw_transitions_reference == 'U_19+S_15':
+                data_path = os.path.join(data_folder, 'Bp_Salumbides+2015.hdf5')
+                append_lw_transitions(lw_transitions_dictionary, data_path)
+        elif lw_transitions_reference == 'A_94':
+            data_path = os.path.join(data_folder, 'Bp_Abgrall+1994.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+    if (excited_states_to_use == 'C') | (excited_states_to_use == 'LW'):
+        if (lw_transitions_reference == 'U_19') | (lw_transitions_reference == 'U_19+S_15'):
+            data_path = os.path.join(data_folder, 'Cp_Ubachs+2019.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+            data_path = os.path.join(data_folder, 'Cm_Ubachs+2019.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+            if lw_transitions_reference == 'U_19+S_15':
+                data_path = os.path.join(data_folder, 'Cp_Salumbides+2015.hdf5')
+                append_lw_transitions(lw_transitions_dictionary, data_path)
+                data_path = os.path.join(data_folder, 'Cm_Salumbides+2015.hdf5')
+                append_lw_transitions(lw_transitions_dictionary, data_path)
+        elif lw_transitions_reference == 'A_94':
+            data_path = os.path.join(data_folder, 'Cp_Abgrall+1994.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+            data_path = os.path.join(data_folder, 'Cm_Abgrall+1994.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+    if excited_states_to_use == 'additional':
+        if (lw_transitions_reference == 'U_19') | (lw_transitions_reference == 'U_19+S_15'):
+            print('Error! U_19 and/or S_15 databases include only B+, C+ and C- transitions. Try with A_94.')
+        elif lw_transitions_reference == 'A_94':
+            data_path = os.path.join(data_folder, 'Bprime_Abgrall+1994.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+            data_path = os.path.join(data_folder, 'Dp_Abgrall+1994.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+            data_path = os.path.join(data_folder, 'Dm_Abgrall+1994.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+    if excited_states_to_use == 'all':
+        if (lw_transitions_reference == 'U_19') | (lw_transitions_reference == 'U_19+S_15'):
+            print('Error! U_19 and/or S_15 databases include only B+, C+ and C- transitions. Try with A_94.')
+        elif lw_transitions_reference == 'A_94':
+            data_path = os.path.join(data_folder, 'Bp_Abgrall+1994.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+            data_path = os.path.join(data_folder, 'Cp_Abgrall+1994.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+            data_path = os.path.join(data_folder, 'Cm_Abgrall+1994.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+            data_path = os.path.join(data_folder, 'Bprime_Abgrall+1994.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+            data_path = os.path.join(data_folder, 'Dp_Abgrall+1994.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
+            data_path = os.path.join(data_folder, 'Dm_Abgrall+1994.hdf5')
+            append_lw_transitions(lw_transitions_dictionary, data_path)
 
-    return all_transitions
+    lw_transitions_dictionary['wl'] *= u.angstrom
+    lw_transitions_dictionary['Gamma'] /= u.s
+    lw_transitions_dictionary['freq'] = (const.c).to(u.angstrom * u.Hz) / (lw_transitions_dictionary['wl'])
+
+    return lw_transitions_dictionary
+
 
 
 def lorentzian(Gamma,nu0,nu):
