@@ -9,7 +9,6 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 from LWphotorates.utils import nu2lambda, lambda2nu, spec_lambda2nu
 from LWphotorates.utils import convert_energy_cm2ev, convert_energy_ev2cm, convert_energy_cm2k
 
-import frigus
 from frigus.readers.dataset import DataLoader
 from frigus.readers.read_energy_levels import read_levels_lique
 from frigus.population import population_density_at_steady_state
@@ -73,37 +72,50 @@ def calculate_partition_function(gas_temperature, ground_states_data=None, norma
         return partition_function
 
 
-def read_Xstates():
-    
-    '''
-    This function reads the file from Komasa et al. (2011)
-    with energies of the rotovibrational levels of the electronic ground state X.
+def call_to_frigus(gas_density, gas_temperature, redshift_for_cmb=15.):
 
-    Structure of the input file (3 cols):
-        v
-        J
-        binding energy        [1/cm]
+    '''
+    In the low density regime LTE approximation is not valid anymore.
+    Instead of considering only ground states of ortho and para-H2, we use the Frigus code:
+    code repo: https://github.com/mherkazandjian/frigus
+    installation: https://pypi.org/project/frigus/
+    paper: https://ui.adsabs.harvard.edu/abs/2019RLSFN..30..707C/abstract
+    The 58 most important rotovibrational levels are employed.
+    The steady-state solution should be accurate enough.
+    Input:
+        gas_density: gas number density in [1/cm^3]
+        gas_temperature: gas temperature in [K]
     Output:
-        dictionary with:
-            v
-            J
-            E(0,0)-E(v,J)     [1/cm]
-            E(0,0)-E(v,J)     [eV]
-            equivalent T      [K]        
+        frigus_ground_states_data: dictionary with the rovib levels used in Frigus,
+            same structure as the other dictionary
+        frigus_partition_function: partition function determined by Frigus, in the low density regime
     '''
 
-    Xen_db_f=os.path.dirname(os.path.abspath(__file__))+'/inputdata/H2/Xgroundstate/vibrotXenergy_Komasa+2011.txt'
-    Xen_db=np.loadtxt(Xen_db_f,unpack=True)
-    Xen={
-        'v':Xen_db[0],
-        'J':Xen_db[1],
-        'cm':Xen_db[2,0]-Xen_db[2]
+    frigus_ground_states_path = os.path.join(os.environ['FRIGUS_DATADIR_ROOT'], 'H2Xvjlevels_francois_mod.cs')
+    frigus_ground_states_file = read_levels_lique(frigus_ground_states_path).data
+    frigus_ground_states_data = {
+        'v': np.array(frigus_ground_states_file['v'].tolist()),
+        'J': np.array(frigus_ground_states_file['j'].tolist()),
+        'eV': frigus_ground_states_file['E']
     }
-    Xen['eV']=convert_energy_cm2ev(Xen['cm'])
-    Xen['K']=convert_energy_cm2k(Xen['cm'])
-    Xen['cm']/=u.cm
+    frigus_ground_states_data['cm'] = convert_energy_ev2cm(frigus_ground_states_data['eV'])
+    frigus_ground_states_data['K'] = convert_energy_cm2k(frigus_ground_states_data['cm'] - frigus_ground_states_data['cm'][0])
 
-    return Xen
+    # CMB is only important at very low density when collisions are extremely rare
+    redshift = redshift_for_cmb
+    cmb_temperature = 2.72548 * u.K * (1. + redshift)
+    # limit of validity of Frigus code: maximum temperature = 5e3K
+    frigus_partition_function = population_density_at_steady_state(
+        data_set=DataLoader().load('H2_lique'),
+        t_kin=np.minimum(gas_temperature, 5e3 * u.K),
+        t_rad=cmb_temperature,
+        collider_density=gas_density.si
+    )
+    # add nuclear spin parity
+    frigus_partition_function = frigus_partition_function.flatten() * (2. - (-1)**frigus_ground_states_data['J']) / 2.
+    # normalise
+    frigus_partition_function /= frigus_partition_function.sum()
+    return frigus_ground_states_data, frigus_partition_function
 
 
 def join_dbs(path,all_transitions):
@@ -220,27 +232,6 @@ def read_transitions(db_touse,exstates_touse):
     return all_transitions
 
 
-def Xpop(Xen,Tgas):
-
-    '''
-    Define the population of the electronic ground state X rovib levels in the LTE limit.
-    The population level is just a number between 0 and 1, the array is normalised to 1.
-    Input:
-        Tgas: gas temperature      [K]
-        Xen: dictionary with the electronic ground state X rovib levels
-    Output:
-        NX: array with LTE Boltzmann coefficients
-    '''
-
-    if type(Tgas)==u.Quantity:
-        Tgas=Tgas.value
-
-    
-    NX=(2-(-1)**Xen['J'])*(2*Xen['J']+1)*np.exp(-Xen['K'].value/Tgas)
-    NX/=NX.sum()
-    return NX
-
-
 def lorentzian(Gamma,nu0,nu):
     
     '''
@@ -254,59 +245,6 @@ def lorentzian(Gamma,nu0,nu):
     
     return (Gamma/2.)/(np.pi*((nu-nu0)**2+(Gamma/2.)**2))
 
-
-def Xpop_frigus(ngas,Tgas):
-
-    '''
-    In the low density regime LTE approximation is not valid anymore.
-    Instead of considering only ground states of ortho and para-H2 use Frigus code.
-    This uses 58 states, steady-state solution should be fine.
-    Input:
-        ngas: gas number density                                      [1/cm^3]
-        Tgas: gas temperature                                         [K]
-    Output:
-        Xen: dictionary with only the two rovib ground states (para and ortho) of X states
-        NX: population of these two levels
-    '''
-
-    '''
-    mask_Xlevel=(Xen['v']==0)&(Xen['J']<2)
-    Xen_OLD=Xen
-    for i in list(Xen_OLD.keys()):
-        Xen[i]=Xen_OLD[i][mask_Xlevel]
-    NX_OLD=NX
-    NX=NX_OLD[mask_Xlevel]
-    NX/=NX.sum()
-    return Xen,NX
-    '''
-
-    data=read_levels_lique(os.environ['FRIGUS_DATADIR_ROOT']+'/H2Xvjlevels_francois_mod.cs').data
-    Xen_Frigus={
-        'v':np.array(data['v'].tolist()),
-        'J':np.array(data['j'].tolist()),
-        'eV':data['E']-data['E'][0]
-    }
-    Xen_Frigus['cm']=convert_energy_ev2cm(Xen_Frigus['eV'])
-    Xen_Frigus['K']=convert_energy_cm2k(Xen_Frigus['cm'])
-
-    redshift=15.
-    cmb_temp=2.72548*(1.+redshift)*u.K    # CMB is only important at very low density when collisions are extremely rare
-    ngas=ngas.si
-    Tgas=np.minimum(Tgas,5e3*u.K)   # limit of validity of Frigus code
-
-    NX_Frigus=population_density_at_steady_state(
-        data_set=DataLoader().load('H2_lique'),
-        t_kin=Tgas,
-        t_rad=cmb_temp,
-        collider_density=ngas
-    )
-    NX_Frigus=NX_Frigus.flatten()
-
-    for i in range(len(NX_Frigus)):
-        if Xen_Frigus['J'][i]%2:
-            NX_Frigus[i]*=3   # add nuclear spin parity, don't know why they are missing it
-    NX_Frigus/=NX_Frigus.sum()
-    return Xen_Frigus,NX_Frigus
 
 
 def filter_speedup(Xen,NX,all_transitions,thresh_Xlevel,thresh_oscxfdiss,thresh_osc,thresh_fdiss):
