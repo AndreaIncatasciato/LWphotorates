@@ -7,7 +7,7 @@ from astropy import units as u
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 from LWphotorates.utils import nu2lambda, lambda2nu, spec_lambda2nu
-from LWphotorates.utils import convert_energy_cm2ev, convert_energy_ev2cm, convert_energy_cm2k
+from LWphotorates.utils import convert_energy_cm2ev, convert_energy_ev2cm, convert_energy_cm2k, get_ioniz_energy_hydrogen
 
 from frigus.readers.dataset import DataLoader
 from frigus.readers.read_energy_levels import read_levels_lique
@@ -302,7 +302,7 @@ def filter_lw_dataset(
     return ground_states_data, partition_function, lw_transitions_dictionary
 
 
-def lorentzian_line_profile(peak_frequency, gamma, frequency_array):
+def generate_lorentzian_line_profile(peak_frequency, gamma, frequency_array):
     
     '''
     Input:
@@ -322,6 +322,83 @@ def lorentzian_line_profile(peak_frequency, gamma, frequency_array):
     line_profile = (gamma / 2.) / (np.pi * ((frequency_array - peak_frequency)**2 + (gamma / 2.)**2))
     return line_profile
 
+
+def calculate_composite_cross_section(
+    gas_density=1e2 * u.cm**-3,
+    gas_temperature=1e3 * u.K,
+    excited_states_to_use='LW',
+    lw_transitions_reference='U_19+S_15',
+    LTE_limit=True,
+    line_profile_flag='V',
+    min_partition_function=None,
+    min_osc_strength_x_diss_fraction=None,
+    min_osc_strength=None,
+    min_diss_fraction=None,
+    custom_frequency_array=None
+):
+
+
+    if LTE_limit:
+        ground_states_data = get_ground_states_data()
+        partition_function = calculate_partition_function(gas_temperature, ground_states_data)
+    else:
+        ground_states_data, partition_function = call_to_frigus(gas_density, gas_temperature)
+    lw_transitions_dictionary = get_lw_transitions(excited_states_to_use=excited_states_to_use, lw_transitions_reference=lw_transitions_reference)
+
+    ground_states_data, partition_function, lw_transitions_dictionary = filter_lw_dataset(
+        ground_states_data,
+        partition_function,
+        lw_transitions_dictionary,
+        min_partition_function=min_partition_function,
+        min_osc_strength_x_diss_fraction=min_osc_strength_x_diss_fraction,
+        min_osc_strength=min_osc_strength,
+        min_diss_fraction=min_diss_fraction
+    )
+
+    mass_H2 = 2.016 * const.u
+    constant_factor = ((np.pi * const.e.si**2 / (4. * np.pi * const.m_e * const.c * const.eps0)).si.cgs).to(u.cm**2 * u.Hz)
+
+    if custom_frequency_array is not None:
+        if type(custom_frequency_array) != u.Quantity:
+            custom_frequency_array = custom_frequency_array * u.Hz
+        frequency_array = custom_frequency_array
+    else:
+        # minimum energy for a transition (in A_94 database): 6.7215772 eV
+        H2_diss_min_energy = 6.5 * u.eV
+        ioniz_energy_hydrogen = get_ioniz_energy_hydrogen()
+        energy_array = np.linspace(H2_diss_min_energy, ioniz_energy_hydrogen, int(1e5))
+        frequency_array = energy_array / (const.h).to(u.eV / u.Hz)
+    cross_section = np.zeros_like(frequency_array.value) * u.cm**2
+    heating_cross_section = np.zeros_like(frequency_array.value) * u.eV * u.cm**2
+
+    for index_gs in range(len(ground_states_data['v'])):
+        gs_level_population = partition_function[index_gs]
+        gs_vibr_quantum_number = ground_states_data['v'][index_gs]
+        gs_rot_quantum_number = ground_states_data['J'][index_gs]
+        mask_transitions = (lw_transitions_dictionary['VL'] == gs_vibr_quantum_number) & (lw_transitions_dictionary['JL'] == gs_rot_quantum_number)
+        for index_trans in range(len(lw_transitions_dictionary['freq'][mask_transitions])):
+            gamma = lw_transitions_dictionary['Gamma'][mask_transitions][index_trans]
+            osc_strength = lw_transitions_dictionary['f'][mask_transitions][index_trans]
+            diss_fraction = lw_transitions_dictionary['frac_diss'][mask_transitions][index_trans]
+            mean_kin_energy = lw_transitions_dictionary['mean_Ekin'][mask_transitions][index_trans]
+            peak_frequency = lw_transitions_dictionary['freq'][mask_transitions][index_trans]
+
+            if line_profile_flag == 'V':
+                gaussian_fwhm = peak_frequency * np.sqrt(8. * np.log(2.) * const.k_B * gas_temperature / (mass_H2 * const.c**2).to(u.J))
+                profile_function = Voigt1D(
+                    x_0=peak_frequency,
+                    amplitude_L=2. / (np.pi * gamma),
+                    fwhm_L=gamma,
+                    fwhm_G=gaussian_fwhm
+                )
+                line_profile = profile_function(frequency_array).to(u.Hz**-1)
+            elif line_profile_flag == 'L':
+                line_profile = generate_lorentzian_line_profile(peak_frequency, gamma, frequency_array).to(u.Hz**-1)
+
+            cross_section += line_profile * constant_factor * gs_level_population * osc_strength * diss_fraction
+            heating_cross_section += line_profile * constant_factor * gs_level_population * osc_strength * diss_fraction * mean_kin_energy
+
+    return cross_section, heating_cross_section
 
 
 
@@ -355,13 +432,21 @@ def calc_sigma(freq_array,ngas,Tgas,LTE,db_touse='U19+S15',exstates_touse='LW',l
     '''
 
     if LTE:
-        Xen=read_Xstates()
-        NX=Xpop(Xen=Xen,Tgas=Tgas)    
+        ground_states_data = get_ground_states_data()
+        partition_function = calculate_partition_function(Tgas, ground_states_data)
     else:
-        Xen,NX=Xpop_frigus(ngas=ngas,Tgas=Tgas)
-    all_transitions=read_transitions(db_touse=db_touse,exstates_touse=exstates_touse)
-    Xen,NX,all_transitions=filter_speedup(Xen=Xen,NX=NX,all_transitions=all_transitions,
-        thresh_Xlevel=thresh_Xlevel,thresh_oscxfdiss=thresh_oscxfdiss,thresh_osc=thresh_osc,thresh_fdiss=thresh_fdiss)
+        ground_states_data, partition_function = call_to_frigus(ngas, Tgas)
+    lw_transitions_dictionary = get_lw_transitions(excited_states_to_use=exstates_touse, lw_transitions_reference=db_touse)
+
+    Xen, NX, all_transitions = filter_lw_dataset(
+        ground_states_data,
+        partition_function,
+        lw_transitions_dictionary,
+        min_partition_function=thresh_Xlevel,
+        min_osc_strength_x_diss_fraction=thresh_oscxfdiss,
+        min_osc_strength=thresh_osc,
+        min_diss_fraction=thresh_fdiss
+    )
 
     mass_H2=2.016*const.u
     coeff=(np.pi*const.e.si**2/(4.*np.pi*const.m_e*const.c*const.eps0)).si.cgs.value
@@ -376,7 +461,7 @@ def calc_sigma(freq_array,ngas,Tgas,LTE,db_touse='U19+S15',exstates_touse='LW',l
         mask_j=all_transitions['JL'][mask_v]==JL
         PvJ=NX[index]
         for i in range(len(all_transitions['freq'][mask_v][mask_j])):
-            gamma=all_transitions['Gamma'][mask_v][mask_j][i]/u.s
+            gamma=all_transitions['Gamma'][mask_v][mask_j][i]
             osc=all_transitions['f'][mask_v][mask_j][i]
             fdiss=all_transitions['frac_diss'][mask_v][mask_j][i]
             ekin=all_transitions['mean_Ekin'][mask_v][mask_j][i]
@@ -386,11 +471,11 @@ def calc_sigma(freq_array,ngas,Tgas,LTE,db_touse='U19+S15',exstates_touse='LW',l
                 v1=Voigt1D(x_0=freq.value,amplitude_L=2./(np.pi*gamma.value),fwhm_L=gamma.value,fwhm_G=fwhm_G.value)
                 lprof=v1(freq_array.value)*osc*fdiss*PvJ*coeff
             elif lineprofile_touse=='L':
-                lprof=lorentzian(Gamma=gamma.value,nu0=freq.value,nu=freq_array.value)*osc*fdiss*PvJ*coeff
-            totsigma+=lprof
-            heating+=lprof*ekin
+                lprof=generate_lorentzian_line_profile(freq,gamma,freq_array)*osc*fdiss*PvJ*coeff
+            totsigma+=lprof.value
+            heating+=(lprof*ekin).value
 
-    return totsigma,heating
+    return totsigma * u.cm**2, heating * u.eV * u.cm**2
 
 
 def calc_kH2(lambda_array,spectra_lambda,distance,ngas,Tgas,
