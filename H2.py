@@ -328,7 +328,7 @@ def calculate_composite_cross_section(
     gas_temperature=1e3 * u.K,
     excited_states_to_use='LW',
     lw_transitions_reference='U_19+S_15',
-    LTE_limit=True,
+    lte_limit=True,
     line_profile_flag='V',
     min_partition_function=None,
     min_osc_strength_x_diss_fraction=None,
@@ -337,8 +337,53 @@ def calculate_composite_cross_section(
     custom_frequency_array=None
 ):
 
+    '''
+    Calculate the composite cross section for a given gas density and temperature,
+    considering all the rotovibrational levels of the electronic ground state.
+    Calculate the partition function in the LTE limit or with Frigus code.
+    Input:
+        gas_density: gas number density in [1/cm^3]
+        gas_temperature: gas temperature in [K]
+        excited_states_to_use: which excited electronic states are taken into account;
+            available choices are ['B', 'C', 'LW', 'additional', 'all']:
+                'B': only B+ states (the 'Lyman' lines), available for all the datasets
+                'C': only C+ and C- states (the 'Werner' lines), available for all the datasets
+                'LW': B+/C+/C- states (all the 'Lyman-Werner' lines), available for all the datasets
+                'additional': only B'+/D+/D- states (usually neglected), available only for Abgrall et al. (1994)
+                'all': all six states (B+/C+/C-/B'+/D+/D-), available only for Abgrall et al. (1994)
+        lw_transitions_reference: which database is employed;
+            available choices are ['A_94', 'U_19', 'U_19+S_15']:
+                'A_94': the most complete and widely used database
+                    Abgrall et al. (1993a) https://ui.adsabs.harvard.edu/abs/1993A%26AS..101..273A/abstract
+                    Abgrall et al. (1993b) https://ui.adsabs.harvard.edu/abs/1993A%26AS..101..323A/abstract
+                    Abgrall et al. (1993c) https://ui.adsabs.harvard.edu/abs/1994CaJPh..72..856A/abstract
+                    Abgrall et al. (1994) https://ui.adsabs.harvard.edu/abs/1993JMoSp.157..512A/abstract
+                    Abgrall et al. (2000) https://ui.adsabs.harvard.edu/abs/2000A%26AS..141..297A/abstract
+                'U_19': Ubachs et al. (2019) https://ui.adsabs.harvard.edu/abs/2019A%26A...622A.127U/abstract
+                    B+/C+/C- states, transitions only from ground state levels with v=0, J=0-7,
+                    recently updated and corrected; appropriate at low temperatures
+                'U_19+S_15': join U_19 with Salumbides et al. (2015) https://ui.adsabs.harvard.edu/abs/2015MNRAS.450.1237S/abstract
+                    B+/C+/C- states, complementary to U_19, recently updated and corrected
+        lte_limit: boolean, whether the LTE limit is being applied to determine the partition function
+        line_profile_flag: profile of the LW lines:
+            'L' for Lorentzian (only natural broadening) or 'V' for Voigt (natural + thermal broadening)
+        min_partition_function: minimum level population to take into account a X rovib level,
+            default value: None, suggested value: [1e-5 - 1e-3]
+        min_osc_strength_x_diss_fraction: minimum value for 'f' * 'frac_diss'
+            (oscillator strength and fraction of molecules that dissociate after the excitation)
+            default value: None, suggested value: 1e-4
+        min_osc_strength: minimum value for 'f' (oscillator strength)
+            default value: None, suggested value: 1e-3
+        min_diss_fraction: minimum value for 'frac_diss' (fraction of molecules that dissociate after the excitation)
+            default value: None, suggested value: 1e-2
+        custom_frequency_array: array of frequencies for the integration of the cross section;
+            default is None, in which case a default array between 6.5 and 13.6 eV will be used
+    Output:
+        cross_section: composite cross section in [cm^2]
+        heating_cross_section: composite 'heating' cross section in [eV cm^2]
+    '''
 
-    if LTE_limit:
+    if lte_limit:
         ground_states_data = get_ground_states_data()
         partition_function = calculate_partition_function(gas_temperature, ground_states_data)
     else:
@@ -363,7 +408,8 @@ def calculate_composite_cross_section(
             custom_frequency_array = custom_frequency_array * u.Hz
         frequency_array = custom_frequency_array
     else:
-        # minimum energy for a transition (in A_94 database): 6.7215772 eV
+        # minimum energy for a transition (in 'A_94' database): 6.7215773 eV
+        # minimum energy for a transition (in 'U_19+S_15' database): 8.5509522 eV        
         H2_diss_min_energy = 6.5 * u.eV
         ioniz_energy_hydrogen = get_ioniz_energy_hydrogen()
         energy_array = np.linspace(H2_diss_min_energy, ioniz_energy_hydrogen, int(1e5))
