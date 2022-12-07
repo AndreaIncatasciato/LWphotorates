@@ -7,7 +7,7 @@ from astropy import units as u
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 from LWphotorates.utils import nu2lambda, lambda2nu, spec_lambda2nu
-from LWphotorates.utils import convert_energy_cm2ev, convert_energy_ev2cm, convert_energy_cm2k, get_ioniz_energy_hydrogen
+from LWphotorates.utils import convert_energy_cm2ev, convert_energy_ev2cm, convert_energy_cm2k, get_ioniz_energy_hydrogen, interpolate_array
 
 from frigus.readers.dataset import DataLoader
 from frigus.readers.read_energy_levels import read_levels_lique
@@ -305,6 +305,8 @@ def filter_lw_dataset(
 def generate_lorentzian_line_profile(peak_frequency, gamma, frequency_array):
     
     '''
+    *** CURRENTLY NOT USED ***
+    *** the corresponding astropy function is used, that gives exactly the same results ***
     Input:
         peak_frequency: frequency of the peak, in [Hz]
         gamma: full-width half-maximum of the Lorentzian profile (natural broadening of the line), in [Hz]
@@ -409,7 +411,7 @@ def calculate_composite_cross_section(
         frequency_array = custom_frequency_array
     else:
         # minimum energy for a transition (in 'A_94' database): 6.7215773 eV
-        # minimum energy for a transition (in 'U_19+S_15' database): 8.5509522 eV        
+        # minimum energy for a transition (in 'U_19+S_15' database): 8.5509522 eV
         H2_diss_min_energy = 6.5 * u.eV
         ioniz_energy_hydrogen = get_ioniz_energy_hydrogen()
         energy_array = np.linspace(H2_diss_min_energy, ioniz_energy_hydrogen, int(1e5))
@@ -450,6 +452,274 @@ def calculate_composite_cross_section(
             heating_cross_section += line_profile * constant_factor * gs_level_population * osc_strength * diss_fraction * mean_kin_energy
 
     return cross_section, heating_cross_section
+
+
+def calculate_kH2_low_resolution(
+    wavelength_array,
+    spectra_wl,
+    distance,
+    gas_density=1e2 * u.cm**-3,
+    gas_temperature=1e3 * u.K,
+    excited_states_to_use='LW',
+    lw_transitions_reference='U_19+S_15',
+    line_profile_flag='V',
+    min_partition_function=None,
+    min_osc_strength_x_diss_fraction=None,
+    min_osc_strength=None,
+    min_diss_fraction=None
+):
+
+    '''
+    Calculate the photodissociation rate of H2 and the corresponding heating rate.
+    The rate is interpolated between the low density limit (where the partition function is determined with the Frigus code)
+    and the LTE limit, as in Glover (2015): https://ui.adsabs.harvard.edu/abs/2015MNRAS.451.2082G/abstract.
+    The critical density for LTE is determined with a fitting function, valid between 1e2 K and 1e4 K.
+    Input:
+        wavelength_array: wavelength array associated with the spectra in [A]
+        spectra_wl: spectra, as monochromatic luminosity in [erg/A/s]
+        distance: distance of the radiating source in [kpc]
+        gas_density: gas number density in [1/cm^3]
+        gas_temperature: gas temperature in [K]
+        excited_states_to_use: which excited electronic states are taken into account;
+            available choices are ['B', 'C', 'LW', 'additional', 'all']:
+                'B': only B+ states (the 'Lyman' lines), available for all the datasets
+                'C': only C+ and C- states (the 'Werner' lines), available for all the datasets
+                'LW': B+/C+/C- states (all the 'Lyman-Werner' lines), available for all the datasets
+                'additional': only B'+/D+/D- states (usually neglected), available only for Abgrall et al. (1994)
+                'all': all six states (B+/C+/C-/B'+/D+/D-), available only for Abgrall et al. (1994)
+        lw_transitions_reference: which database is employed;
+            available choices are ['A_94', 'U_19', 'U_19+S_15']:
+                'A_94': the most complete and widely used database
+                    Abgrall et al. (1993a) https://ui.adsabs.harvard.edu/abs/1993A%26AS..101..273A/abstract
+                    Abgrall et al. (1993b) https://ui.adsabs.harvard.edu/abs/1993A%26AS..101..323A/abstract
+                    Abgrall et al. (1993c) https://ui.adsabs.harvard.edu/abs/1994CaJPh..72..856A/abstract
+                    Abgrall et al. (1994) https://ui.adsabs.harvard.edu/abs/1993JMoSp.157..512A/abstract
+                    Abgrall et al. (2000) https://ui.adsabs.harvard.edu/abs/2000A%26AS..141..297A/abstract
+                'U_19': Ubachs et al. (2019) https://ui.adsabs.harvard.edu/abs/2019A%26A...622A.127U/abstract
+                    B+/C+/C- states, transitions only from ground state levels with v=0, J=0-7,
+                    recently updated and corrected; appropriate at low temperatures
+                'U_19+S_15': join U_19 with Salumbides et al. (2015) https://ui.adsabs.harvard.edu/abs/2015MNRAS.450.1237S/abstract
+                    B+/C+/C- states, complementary to U_19, recently updated and corrected
+        line_profile_flag: profile of the LW lines:
+            'L' for Lorentzian (only natural broadening) or 'V' for Voigt (natural + thermal broadening)
+        min_partition_function: minimum level population to take into account a X rovib level,
+            default value: None, suggested value: [1e-5 - 1e-3]
+        min_osc_strength_x_diss_fraction: minimum value for 'f' * 'frac_diss'
+            (oscillator strength and fraction of molecules that dissociate after the excitation)
+            default value: None, suggested value: 1e-4
+        min_osc_strength: minimum value for 'f' (oscillator strength)
+            default value: None, suggested value: 1e-3
+        min_diss_fraction: minimum value for 'frac_diss' (fraction of molecules that dissociate after the excitation)
+            default value: None, suggested value: 1e-2
+    Output:
+        dissociation_rate: dissociation rate in [1/s]
+        heating_rate: heating rate in [eV/s]
+    '''
+
+    frequency_array = lambda2nu(wavelength_array)
+    energy_array = (const.h).to(u.eV / u.Hz) * frequency_array
+    # check on dimension, so we can cycle over the first dimension
+    if spectra_wl.ndim == 1:
+        spectra_wl = np.atleast_2d(spectra_wl)
+    number_of_spectra = spectra_wl.shape[0]
+
+    units_monochromatic_luminosity_wl = u.erg / u.s / u.angstrom
+    units_monochromatic_luminosity_freq = u.erg / u.s / u.Hz
+    units_monochromatic_intensity_freq = units_monochromatic_luminosity_freq / u.cm**2 / u.sr
+
+    spectra_freq = u.quantity.Quantity(value=np.empty_like(spectra_wl.value), unit=units_monochromatic_luminosity_freq)
+    for i in range(number_of_spectra):
+        spectra_freq[i] = spec_lambda2nu(wavelength_array, spectra_wl[i])
+
+    # determine the cross sections in the two limits
+    low_density_cross_section, low_density_heating_cross_section = calculate_composite_cross_section(
+        gas_density, gas_temperature,
+        excited_states_to_use, lw_transitions_reference,
+        False, line_profile_flag,
+        min_partition_function, min_osc_strength_x_diss_fraction, min_osc_strength, min_diss_fraction,
+        frequency_array
+    )
+    lte_cross_section, lte_heating_cross_section = calculate_composite_cross_section(
+        gas_density, gas_temperature,
+        excited_states_to_use, lw_transitions_reference,
+        True, line_profile_flag,
+        min_partition_function, min_osc_strength_x_diss_fraction, min_osc_strength, min_diss_fraction,
+        frequency_array
+    )
+
+    # perform the integrations
+    solid_angle = 4. * np.pi * u.sr
+    surface_area = 4. * np.pi * (distance.to(u.cm))**2
+    intensity_freq = spectra_freq / solid_angle / surface_area
+
+    integration_x_axis = frequency_array
+
+    integration_y_axis = low_density_cross_section * intensity_freq / energy_array.to(u.erg)
+    low_density_rate = solid_angle * np.trapz(integration_y_axis, integration_x_axis)
+    integration_y_axis = lte_cross_section * intensity_freq / energy_array.to(u.erg)
+    lte_rate = solid_angle * np.trapz(integration_y_axis, integration_x_axis)
+
+    integration_y_axis = low_density_heating_cross_section * intensity_freq / energy_array.to(u.erg)
+    low_density_heating_rate = solid_angle * np.trapz(integration_y_axis, integration_x_axis)
+    integration_y_axis = lte_heating_cross_section * intensity_freq / energy_array.to(u.erg)
+    lte_heating_rate = solid_angle * np.trapz(integration_y_axis, integration_x_axis)
+
+    # fit that describes how the critical density changes with the gas temperature [range 1e2-1e4 K]
+    # coefficients run from the highest power to the constant term
+    critical_density_fit_coefficients = np.array([
+        0.34039642148109583, -0.29084941325456615, 
+        -2.141586661424785, 5.168955239880383
+        ])
+    log_gas_temperature = np.log10(gas_temperature.value)
+    critical_density = np.power(10., np.polyval(critical_density_fit_coefficients, log_gas_temperature - 3.)) * u.cm**-3
+    alpha_exponent = (1. + gas_density / critical_density)**-1
+
+    dissociation_rate = lte_rate * (low_density_rate / lte_rate)**alpha_exponent
+    heating_rate = lte_heating_rate * (low_density_heating_rate / lte_heating_rate)**alpha_exponent
+
+    return dissociation_rate, heating_rate
+
+
+
+def calculate_kH2_high_resolution(
+    wavelength_array,
+    spectra_wl,
+    distance,
+    gas_density=1e2 * u.cm**-3,
+    gas_temperature=1e3 * u.K,
+    excited_states_to_use='LW',
+    lw_transitions_reference='U_19+S_15',
+    line_profile_flag='V',
+    min_partition_function=None,
+    min_osc_strength_x_diss_fraction=None,
+    min_osc_strength=None,
+    min_diss_fraction=None
+):
+
+    '''
+    Calculate the photodissociation rate of H2 and the corresponding heating rate.
+    The rate is interpolated between the low density limit (where the partition function is determined with the Frigus code)
+    and the LTE limit, as in Glover (2015): https://ui.adsabs.harvard.edu/abs/2015MNRAS.451.2082G/abstract.
+    The critical density for LTE is determined with a fitting function, valid between 1e2 K and 1e4 K.
+    Input:
+        wavelength_array: wavelength array associated with the spectra in [A]
+        spectra_wl: spectra, as monochromatic luminosity in [erg/A/s]
+        distance: distance of the radiating source in [kpc]
+        gas_density: gas number density in [1/cm^3]
+        gas_temperature: gas temperature in [K]
+        excited_states_to_use: which excited electronic states are taken into account;
+            available choices are ['B', 'C', 'LW', 'additional', 'all']:
+                'B': only B+ states (the 'Lyman' lines), available for all the datasets
+                'C': only C+ and C- states (the 'Werner' lines), available for all the datasets
+                'LW': B+/C+/C- states (all the 'Lyman-Werner' lines), available for all the datasets
+                'additional': only B'+/D+/D- states (usually neglected), available only for Abgrall et al. (1994)
+                'all': all six states (B+/C+/C-/B'+/D+/D-), available only for Abgrall et al. (1994)
+        lw_transitions_reference: which database is employed;
+            available choices are ['A_94', 'U_19', 'U_19+S_15']:
+                'A_94': the most complete and widely used database
+                    Abgrall et al. (1993a) https://ui.adsabs.harvard.edu/abs/1993A%26AS..101..273A/abstract
+                    Abgrall et al. (1993b) https://ui.adsabs.harvard.edu/abs/1993A%26AS..101..323A/abstract
+                    Abgrall et al. (1993c) https://ui.adsabs.harvard.edu/abs/1994CaJPh..72..856A/abstract
+                    Abgrall et al. (1994) https://ui.adsabs.harvard.edu/abs/1993JMoSp.157..512A/abstract
+                    Abgrall et al. (2000) https://ui.adsabs.harvard.edu/abs/2000A%26AS..141..297A/abstract
+                'U_19': Ubachs et al. (2019) https://ui.adsabs.harvard.edu/abs/2019A%26A...622A.127U/abstract
+                    B+/C+/C- states, transitions only from ground state levels with v=0, J=0-7,
+                    recently updated and corrected; appropriate at low temperatures
+                'U_19+S_15': join U_19 with Salumbides et al. (2015) https://ui.adsabs.harvard.edu/abs/2015MNRAS.450.1237S/abstract
+                    B+/C+/C- states, complementary to U_19, recently updated and corrected
+        line_profile_flag: profile of the LW lines:
+            'L' for Lorentzian (only natural broadening) or 'V' for Voigt (natural + thermal broadening)
+        min_partition_function: minimum level population to take into account a X rovib level,
+            default value: None, suggested value: [1e-5 - 1e-3]
+        min_osc_strength_x_diss_fraction: minimum value for 'f' * 'frac_diss'
+            (oscillator strength and fraction of molecules that dissociate after the excitation)
+            default value: None, suggested value: 1e-4
+        min_osc_strength: minimum value for 'f' (oscillator strength)
+            default value: None, suggested value: 1e-3
+        min_diss_fraction: minimum value for 'frac_diss' (fraction of molecules that dissociate after the excitation)
+            default value: None, suggested value: 1e-2
+    Output:
+        dissociation_rate: dissociation rate in [1/s]
+        heating_rate: heating rate in [eV/s]
+    '''
+
+    frequency_array = lambda2nu(wavelength_array)
+    energy_array = (const.h).to(u.eV / u.Hz) * frequency_array
+    # check on dimension, so we can cycle over the first dimension
+    if spectra_wl.ndim == 1:
+        spectra_wl = np.atleast_2d(spectra_wl)
+    number_of_spectra = spectra_wl.shape[0]
+
+    units_monochromatic_luminosity_wl = u.erg / u.s / u.angstrom
+    units_monochromatic_luminosity_freq = u.erg / u.s / u.Hz
+    units_monochromatic_intensity_freq = units_monochromatic_luminosity_freq / u.cm**2 / u.sr
+
+    spectra_freq = u.quantity.Quantity(value=np.empty_like(spectra_wl.value), unit=units_monochromatic_luminosity_freq)
+    for i in range(number_of_spectra):
+        spectra_freq[i] = spec_lambda2nu(wavelength_array, spectra_wl[i])
+    
+    solid_angle = 4. * np.pi * u.sr
+    surface_area = 4. * np.pi * (distance.to(u.cm))**2
+    intensity_freq = spectra_freq / solid_angle / surface_area
+    
+    # minimum energy for a transition (in 'A_94' database): 6.7215773 eV
+    # minimum energy for a transition (in 'U_19+S_15' database): 8.5509522 eV
+    H2_diss_min_energy = 6.5 * u.eV
+    ioniz_energy_hydrogen = get_ioniz_energy_hydrogen()
+    custom_energy_array = np.linspace(H2_diss_min_energy, ioniz_energy_hydrogen, int(1e5))
+    custom_frequency_array = custom_energy_array / (const.h).to(u.eV / u.Hz)
+
+    new_intensity_freq = interpolate_array(
+        old_x_axis=frequency_array,
+        old_y_axis=intensity_freq,
+        new_x_axis=custom_frequency_array
+    )
+
+    # determine the cross sections in the two limits
+    low_density_cross_section, low_density_heating_cross_section = calculate_composite_cross_section(
+        gas_density, gas_temperature,
+        excited_states_to_use, lw_transitions_reference,
+        False, line_profile_flag,
+        min_partition_function, min_osc_strength_x_diss_fraction, min_osc_strength, min_diss_fraction,
+        custom_frequency_array
+    )
+    lte_cross_section, lte_heating_cross_section = calculate_composite_cross_section(
+        gas_density, gas_temperature,
+        excited_states_to_use, lw_transitions_reference,
+        True, line_profile_flag,
+        min_partition_function, min_osc_strength_x_diss_fraction, min_osc_strength, min_diss_fraction,
+        custom_frequency_array
+    )
+
+    # perform the integrations
+    integration_x_axis = custom_frequency_array
+
+    integration_y_axis = low_density_cross_section * new_intensity_freq / custom_energy_array.to(u.erg)
+    low_density_rate = solid_angle * np.trapz(integration_y_axis, integration_x_axis)
+    integration_y_axis = lte_cross_section * new_intensity_freq / custom_energy_array.to(u.erg)
+    lte_rate = solid_angle * np.trapz(integration_y_axis, integration_x_axis)
+
+    integration_y_axis = low_density_heating_cross_section * new_intensity_freq / custom_energy_array.to(u.erg)
+    low_density_heating_rate = solid_angle * np.trapz(integration_y_axis, integration_x_axis)
+    integration_y_axis = lte_heating_cross_section * new_intensity_freq / custom_energy_array.to(u.erg)
+    lte_heating_rate = solid_angle * np.trapz(integration_y_axis, integration_x_axis)
+
+    # fit that describes how the critical density changes with the gas temperature [range 1e2-1e4 K]
+    # coefficients run from the highest power to the constant term
+    critical_density_fit_coefficients = np.array([
+        0.34039642148109583, -0.29084941325456615, 
+        -2.141586661424785, 5.168955239880383
+        ])
+    log_gas_temperature = np.log10(gas_temperature.value)
+    critical_density = np.power(10., np.polyval(critical_density_fit_coefficients, log_gas_temperature - 3.)) * u.cm**-3
+    alpha_exponent = (1. + gas_density / critical_density)**-1
+
+    dissociation_rate = lte_rate * (low_density_rate / lte_rate)**alpha_exponent
+    heating_rate = lte_heating_rate * (low_density_heating_rate / lte_heating_rate)**alpha_exponent
+
+    return dissociation_rate, heating_rate
+
+
 
 
 
@@ -503,14 +773,32 @@ def calc_kH2(lambda_array,spectra_lambda,distance,ngas,Tgas,
     en_array_HR=np.linspace(minEn.value,maxEn.value,100000)*u.eV
     nu_array_HR=en_array_HR/const.h.to(u.eV/u.Hz)
 
-    sigma_noLTE,heating_noLTE=calc_sigma(
-        freq_array=nu_array_HR,ngas=ngas,Tgas=Tgas,LTE=False,
-        db_touse=db_touse,exstates_touse=exstates_touse,lineprofile_touse=lineprofile_touse,
-        thresh_Xlevel=thresh_Xlevel,thresh_oscxfdiss=thresh_oscxfdiss,thresh_osc=thresh_osc,thresh_fdiss=thresh_fdiss)
-    sigma_LTE,heating_LTE=calc_sigma(
-        freq_array=nu_array_HR,ngas=ngas,Tgas=Tgas,LTE=True,
-        db_touse=db_touse,exstates_touse=exstates_touse,lineprofile_touse=lineprofile_touse,
-        thresh_Xlevel=thresh_Xlevel,thresh_oscxfdiss=thresh_oscxfdiss,thresh_osc=thresh_osc,thresh_fdiss=thresh_fdiss)
+    sigma_noLTE,heating_noLTE=calculate_composite_cross_section(
+        gas_density=ngas,
+        gas_temperature=Tgas,
+        excited_states_to_use=exstates_touse,
+        lw_transitions_reference=db_touse,
+        lte_limit=False,
+        line_profile_flag=lineprofile_touse,
+        min_partition_function=thresh_Xlevel,
+        min_osc_strength_x_diss_fraction=thresh_oscxfdiss,
+        min_osc_strength=thresh_osc,
+        min_diss_fraction=thresh_fdiss,
+        custom_frequency_array=nu_array_HR
+    )
+    sigma_LTE,heating_LTE=calculate_composite_cross_section(
+        gas_density=ngas,
+        gas_temperature=Tgas,
+        excited_states_to_use=exstates_touse,
+        lw_transitions_reference=db_touse,
+        lte_limit=True,
+        line_profile_flag=lineprofile_touse,
+        min_partition_function=thresh_Xlevel,
+        min_osc_strength_x_diss_fraction=thresh_oscxfdiss,
+        min_osc_strength=thresh_osc,
+        min_diss_fraction=thresh_fdiss,
+        custom_frequency_array=nu_array_HR
+    )
 
     if return_sigma_only:
         return sigma_noLTE,sigma_LTE,nu_array_HR
@@ -533,11 +821,11 @@ def calc_kH2(lambda_array,spectra_lambda,distance,ngas,Tgas,
         intensity_nu_HR[i]=interpspectrum(nu_array_HR)
     intensity_nu_HR=intensity_nu_HR*units_intensity
 
-    diss_rate_noLTE=4.*np.pi*u.sr*np.trapz(sigma_noLTE*u.cm**2*intensity_nu_HR/en_array_HR.to(u.erg),nu_array_HR)
-    heat_rate_noLTE=4.*np.pi*u.sr*np.trapz(heating_noLTE*u.cm**2*intensity_nu_HR/en_array_HR.to(u.erg),nu_array_HR)
+    diss_rate_noLTE=4.*np.pi*u.sr*np.trapz(sigma_noLTE*intensity_nu_HR/en_array_HR.to(u.erg),nu_array_HR)
+    heat_rate_noLTE=4.*np.pi*u.sr*np.trapz(heating_noLTE*intensity_nu_HR/en_array_HR.to(u.erg),nu_array_HR)
 
-    diss_rate_LTE=4.*np.pi*u.sr*np.trapz(sigma_LTE*u.cm**2*intensity_nu_HR/en_array_HR.to(u.erg),nu_array_HR)
-    heat_rate_LTE=4.*np.pi*u.sr*np.trapz(heating_LTE*u.cm**2*intensity_nu_HR/en_array_HR.to(u.erg),nu_array_HR)
+    diss_rate_LTE=4.*np.pi*u.sr*np.trapz(sigma_LTE*intensity_nu_HR/en_array_HR.to(u.erg),nu_array_HR)
+    heat_rate_LTE=4.*np.pi*u.sr*np.trapz(heating_LTE*intensity_nu_HR/en_array_HR.to(u.erg),nu_array_HR)
 
     fit_ncrit_coef=[5.168955239880383,-2.141586661424785,-0.29084941325456615,0.34039642148109583]   # this is my fit that describes how ncrit changes with Tgas [range 1e2-1e4 K]
     log_Tgas=np.log10(Tgas.value)
