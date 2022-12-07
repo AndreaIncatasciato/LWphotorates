@@ -12,7 +12,7 @@ from LWphotorates.utils import convert_energy_cm2ev, convert_energy_ev2cm, conve
 from frigus.readers.dataset import DataLoader
 from frigus.readers.read_energy_levels import read_levels_lique
 from frigus.population import population_density_at_steady_state
-from astropy.modeling.models import Voigt1D
+from astropy.modeling.models import Voigt1D, Lorentz1D
 
 
 def get_ground_states_data():
@@ -439,8 +439,13 @@ def calculate_composite_cross_section(
                 )
                 line_profile = profile_function(frequency_array).to(u.Hz**-1)
             elif line_profile_flag == 'L':
-                line_profile = generate_lorentzian_line_profile(peak_frequency, gamma, frequency_array).to(u.Hz**-1)
-
+                # line_profile = generate_lorentzian_line_profile(peak_frequency, gamma, frequency_array).to(u.Hz**-1)
+                profile_function = Lorentz1D(
+                    x_0=peak_frequency,
+                    amplitude=2. / (np.pi * gamma),
+                    fwhm=gamma,
+                )
+                line_profile = profile_function(frequency_array).to(u.Hz**-1)
             cross_section += line_profile * constant_factor * gs_level_population * osc_strength * diss_fraction
             heating_cross_section += line_profile * constant_factor * gs_level_population * osc_strength * diss_fraction * mean_kin_energy
 
