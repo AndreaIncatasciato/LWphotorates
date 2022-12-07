@@ -240,6 +240,7 @@ def get_lw_transitions(excited_states_to_use, lw_transitions_reference):
             append_lw_transitions(lw_transitions_dictionary, data_path)
 
     lw_transitions_dictionary['wl'] *= u.angstrom
+    lw_transitions_dictionary['mean_Ekin'] *= u.eV
     lw_transitions_dictionary['Gamma'] /= u.s
     lw_transitions_dictionary['freq'] = (const.c).to(u.angstrom * u.Hz) / (lw_transitions_dictionary['wl'])
 
