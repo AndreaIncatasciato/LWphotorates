@@ -301,19 +301,25 @@ def filter_lw_dataset(
     return ground_states_data, partition_function, lw_transitions_dictionary
 
 
-
-def lorentzian(Gamma,nu0,nu):
+def lorentzian_line_profile(peak_frequency, gamma, frequency_array):
     
     '''
     Input:
-        Gamma: FWHM of the Lorentzian profile (natural broadening of the line)
-        nu0: central frequency
-        nu: frequency array
+        peak_frequency: frequency of the peak, in [Hz]
+        gamma: full-width half-maximum of the Lorentzian profile (natural broadening of the line), in [Hz]
+        frequency_array: frequency array, in [Hz]
     Output:
-        lorentzian line profile, array with the same size as the frequency array
+        line_profile: Lorentzian line profile
     '''
-    
-    return (Gamma/2.)/(np.pi*((nu-nu0)**2+(Gamma/2.)**2))
+
+    # make sure gamma is in [Hz] (equivalent to [1/s]), so the final line profile will have the dimension of [1/Hz]
+    if type(gamma) != u.Quantity:
+        gamma = gamma * u.Hz
+    else:
+        gamma = gamma.to(u.Hz)
+
+    line_profile = (gamma / 2.) / (np.pi * ((frequency_array - peak_frequency)**2 + (gamma / 2.)**2))
+    return line_profile
 
 
 
