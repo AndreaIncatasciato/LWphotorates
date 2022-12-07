@@ -246,6 +246,59 @@ def get_lw_transitions(excited_states_to_use, lw_transitions_reference):
     return lw_transitions_dictionary
 
 
+def filter_lw_dataset(
+    ground_states_data,
+    partition_function,
+    lw_transitions_dictionary,
+    min_partition_function=None,
+    min_osc_strength_x_diss_fraction=None,
+    min_osc_strength=None,
+    min_diss_fraction=None
+    ):
+
+    '''
+    Filter out the least significant LW transitions or the least populated rotovibrational levels.
+    This improves the speed of the code.
+    Input:
+        ground_states_data: dictionary with the electronic ground state X rovib levels
+        partition_function: partition function of the molecules
+        lw_transitions_dictionary: dictionary of LW transitions, with oscillator strengths and other data
+        min_partition_function: minimum level population to take into account a X rovib level,
+            default value: None, suggested value: [1e-5 - 1e-3]
+        min_osc_strength_x_diss_fraction: minimum value for 'f' * 'frac_diss'
+            (oscillator strength and fraction of molecules that dissociate after the excitation)
+            default value: None, suggested value: 1e-4
+        min_osc_strength: minimum value for 'f' (oscillator strength)
+            default value: None, suggested value: 1e-3
+        min_diss_fraction: minimum value for 'frac_diss' (fraction of molecules that dissociate after the excitation)
+            default value: None, suggested value: 1e-2
+    Output:
+        ground_states_data: (reduced) dictionary with the electronic ground state X rovib levels
+        partition_function: (reduced) partition function of the molecules
+        lw_transitions_dictionary: (reduced) dictionary of LW transitions, with oscillator strengths and other data
+    '''
+
+    if min_partition_function is not None:
+        mask_rovib_levels = partition_function >= min_partition_function
+        for key in ground_states_data:
+            ground_states_data[key] = ground_states_data[key][mask_rovib_levels]
+        partition_function = partition_function[mask_rovib_levels]
+
+    mask_lw_transitions = None
+    if min_osc_strength_x_diss_fraction is not None:
+        mask_lw_transitions = (lw_transitions_dictionary['f'] * lw_transitions_dictionary['frac_diss']) >= min_osc_strength_x_diss_fraction
+    elif min_osc_strength is not None:
+        mask_lw_transitions = lw_transitions_dictionary['f'] >= min_osc_strength
+    elif min_diss_fraction is not None:
+        mask_lw_transitions = lw_transitions_dictionary['frac_diss'] >= min_diss_fraction
+
+    if mask_lw_transitions is not None:
+        for key in lw_transitions_dictionary.keys():
+            lw_transitions_dictionary[key] = lw_transitions_dictionary[key][mask_lw_transitions]
+
+    return ground_states_data, partition_function, lw_transitions_dictionary
+
+
 
 def lorentzian(Gamma,nu0,nu):
     
