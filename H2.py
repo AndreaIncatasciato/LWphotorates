@@ -284,17 +284,19 @@ def filter_lw_dataset(
             ground_states_data[key] = ground_states_data[key][mask_rovib_levels]
         partition_function = partition_function[mask_rovib_levels]
 
-    mask_lw_transitions = None
+    mask_lw_transitions = np.full(lw_transitions_dictionary['f'].shape, True)
     if min_osc_strength_x_diss_fraction is not None:
-        mask_lw_transitions = (lw_transitions_dictionary['f'] * lw_transitions_dictionary['frac_diss']) >= min_osc_strength_x_diss_fraction
-    elif min_osc_strength is not None:
-        mask_lw_transitions = lw_transitions_dictionary['f'] >= min_osc_strength
-    elif min_diss_fraction is not None:
-        mask_lw_transitions = lw_transitions_dictionary['frac_diss'] >= min_diss_fraction
+        mask_product = (lw_transitions_dictionary['f'] * lw_transitions_dictionary['frac_diss']) >= min_osc_strength_x_diss_fraction
+        mask_lw_transitions = mask_lw_transitions & mask_product
+    if min_osc_strength is not None:
+        mask_osc_strength = lw_transitions_dictionary['f'] >= min_osc_strength
+        mask_lw_transitions = mask_lw_transitions & mask_osc_strength
+    if min_diss_fraction is not None:
+        mask_diss_fraction = lw_transitions_dictionary['frac_diss'] >= min_diss_fraction
+        mask_lw_transitions = mask_lw_transitions & mask_diss_fraction
 
-    if mask_lw_transitions is not None:
-        for key in lw_transitions_dictionary.keys():
-            lw_transitions_dictionary[key] = lw_transitions_dictionary[key][mask_lw_transitions]
+    for key in lw_transitions_dictionary.keys():
+        lw_transitions_dictionary[key] = lw_transitions_dictionary[key][mask_lw_transitions]
 
     return ground_states_data, partition_function, lw_transitions_dictionary
 
