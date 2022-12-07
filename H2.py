@@ -317,46 +317,6 @@ def lorentzian(Gamma,nu0,nu):
 
 
 
-def filter_speedup(Xen,NX,all_transitions,thresh_Xlevel,thresh_oscxfdiss,thresh_osc,thresh_fdiss):
-
-    '''
-    To speed up the computation, in case lots of rovib levels or transitions are available, just consider the most significant.
-    Input:
-        Xen: dictionary with the energies of all the X levels
-        NX: population of all the X levels
-        all_transitions: dictionary with all the LW transitions
-        thresh_Xlevel: minimum level population to take into account a X rovib level, suggested values [1e-5-1e-3]
-        thresh_oscxfdiss: minimum level population to take into account a X rovib level, suggested value 1e-4
-        thresh_osc: minimum level population to take into account a X rovib level, suggested value 1e-3
-        thresh_fdiss: minimum level population to take into account a X rovib level, suggested value 1e-2
-    Output:
-        Xen: dictionary with the energies of all the X levels with population above a certain threshold, if defined
-        NX: population of all the X levels with population above a certain threshold, if defined
-        all_transitions: dictionary with all the LW transitions, with osc, fdiss or osc*fdiss above a certain threshold, if defined
-    '''
-
-    if thresh_Xlevel is not None:
-        mask_Xlevel=NX>=thresh_Xlevel
-        Xen_OLD=Xen
-        for i in list(Xen_OLD.keys()):
-            Xen[i]=Xen_OLD[i][mask_Xlevel]
-        NX_OLD=NX
-        NX=NX_OLD[mask_Xlevel]
-
-    mask_transitions=None
-    if thresh_osc is not None:
-        mask_transitions=all_transitions['f']>=thresh_osc
-    elif thresh_fdiss is not None:
-        mask_transitions=all_transitions['frac_diss']>=thresh_fdiss
-    elif thresh_oscxfdiss is not None:
-        mask_transitions=(all_transitions['f']*all_transitions['frac_diss'])>=thresh_oscxfdiss
-    if mask_transitions is not None:
-        all_transitions_OLD=all_transitions
-        for i in list(all_transitions_OLD.keys()):
-            all_transitions[i]=all_transitions_OLD[i][mask_transitions]
-
-    return Xen,NX,all_transitions
-
 
 def calc_sigma(freq_array,ngas,Tgas,LTE,db_touse='U19+S15',exstates_touse='LW',lineprofile_touse='V',thresh_Xlevel=None,thresh_oscxfdiss=None,thresh_osc=None,thresh_fdiss=None):
 
