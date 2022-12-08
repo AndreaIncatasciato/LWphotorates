@@ -1,0 +1,88 @@
+for H2 spectral resolution is key
+
+
+old function: enhance resolution by resampling spectra in [6-13.6] eV interval with 1e5 points
+new function (low-resolution): keep the same resolution as the initial spectrum
+new function (the one we are actually using): enhance resolution by resampling spectra in [6.5-13.6] eV interval with 1e5 points
+
+
+(1)
+*** parameters of the run ***
+
+gas_density_for_tests = 1e1 * u.cm**-3
+gas_temperature_for_tests = 1e2 * u.K
+excited_states_to_use = 'LW'
+lw_transitions_reference = 'U_19+S_15'
+min_partition_function = 1e-6
+min_osc_strength_x_diss_fraction = 1e-4
+min_osc_strength = None
+min_diss_fraction = None
+
+spectrum: flat, normalised with intensity = 1 J21
+
+line profile: Voigt
+number of points in [0.1-13.6] eV interval          dissociation rate [1/s]         heating rate [eV/s]
+1e3                                                 2.5617861e-14                   1.44509818e-14
+1e4                                                 2.22665803e-13                  1.36110391e-13
+1e5                                                 1.18412271e-12                  4.82741625e-13
+1e6                                                 1.40603972e-12                  5.7608268e-13
+5e6                                                 1.40603972e-12                  5.7608268e-13
+new function with 1e5 points                        1.39774139e-12                  5.78404664e-13
+
+line profile: Lorentzian
+number of points in [0.1-13.6] eV interval          dissociation rate [1/s]         heating rate [eV/s]
+1e3                                                 2.3821344189588504e-14          1.344700368159393e-14
+1e4                                                 4.706240199749132e-14           2.100580866201651e-14
+1e5                                                 4.38435269614208e-13            2.3341060824294957e-13
+1e6                                                 1.1728212795283362e-12          5.243224600285829e-13
+5e6                                                 1.4087139588889243e-12          5.773863109348686e-13
+new function with 1e5 points                        9.24530925e-13                  3.77674732e-13
+
+
+(2)
+*** parameters of the run ***
+
+gas_density_for_tests = 1e8 * u.cm**-3
+gas_temperature_for_tests = 3e3 * u.K
+excited_states_to_use = 'LW'
+lw_transitions_reference = 'U_19+S_15'
+min_partition_function = 1e-6
+min_osc_strength_x_diss_fraction = 1e-4
+min_osc_strength = None
+min_diss_fraction = None
+
+spectrum: flat, normalised with intensity = 1 J21
+
+line profile: Voigt
+number of points in [0.1-13.6] eV interval          dissociation rate [1/s]         heating rate [eV/s]
+1e3                                                 1.1374749254548825e-12          6.549600579000022e-13
+1e4                                                 9.826602124717354e-13           3.975607487058948e-13
+1e5                                                 1.1301838721440563e-12          4.714638722302239e-13
+1e6                                                 1.1301838646170106e-12          4.714638672466203e-13
+5e6                                                 1.1301838646171897e-12          4.714638672467608e-13
+new function with 1e5 points                        1.13018343e-12                  4.71463668e-13
+
+line profile: Lorentzian
+number of points in [0.1-13.6] eV interval          dissociation rate [1/s]         heating rate [eV/s]
+1e3                                                 9.26362734097179e-14            3.62428545678418e-14
+1e4                                                 1.0806673222145064e-12          3.4150633848198444e-13
+1e5                                                 8.930341808663098e-13           3.32974068321165e-13
+1e6                                                 1.0829969847994678e-12          4.5837507000613e-13
+5e6                                                 1.1311938111435023e-12          4.720828795038321e-13
+new function with 1e5 points                        1.06731375e-12                  4.25013658e-13
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
