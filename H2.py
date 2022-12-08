@@ -470,6 +470,7 @@ def calculate_kH2_low_resolution(
 ):
 
     '''
+    *** CURRENTLY NOT USED ***
     Calculate the photodissociation rate of H2 and the corresponding heating rate.
     The rate is interpolated between the low density limit (where the partition function is determined with the Frigus code)
     and the LTE limit, as in Glover (2015): https://ui.adsabs.harvard.edu/abs/2015MNRAS.451.2082G/abstract.
@@ -581,7 +582,7 @@ def calculate_kH2_low_resolution(
 
 
 
-def calculate_kH2_high_resolution(
+def calculate_kH2(
     wavelength_array,
     spectra_wl,
     distance,
@@ -666,9 +667,10 @@ def calculate_kH2_high_resolution(
     # minimum energy for a transition (in 'U_19+S_15' database): 8.5509522 eV
     H2_diss_min_energy = 6.5 * u.eV
     ioniz_energy_hydrogen = get_ioniz_energy_hydrogen()
+    # interpolate spectra to enhance the resolution, 1e5 points are enough if using the Voigt line profile;
+    # am I allowed to do this? the alternative is not viable, the result would depend too much on the initial resolution
     custom_energy_array = np.linspace(H2_diss_min_energy, ioniz_energy_hydrogen, int(1e5))
     custom_frequency_array = custom_energy_array / (const.h).to(u.eV / u.Hz)
-
     new_intensity_freq = interpolate_array(
         old_x_axis=frequency_array,
         old_y_axis=intensity_freq,
