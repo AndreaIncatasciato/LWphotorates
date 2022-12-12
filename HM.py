@@ -101,6 +101,19 @@ def get_cross_section(reference='ML_17'):
     return data_dictionary
 
 
+def get_reaction_min_energy():
+
+    '''
+    Get the minimum energy for the detachment of H-.
+    Output:
+        min_energy: in [eV]
+    '''
+
+    cross_section = get_cross_section()
+    min_energy = cross_section['energy'][0]
+
+    return min_energy
+
 
 def calculate_kHM(
     wavelength_array,

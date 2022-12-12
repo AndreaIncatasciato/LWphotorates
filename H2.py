@@ -302,6 +302,24 @@ def filter_lw_dataset(
     return ground_states_data, partition_function, lw_transitions_dictionary
 
 
+def get_reaction_min_energy():
+
+    '''
+    Get the LW transition with the lowest energy, from the (0, 0) and (0, 1) levels
+    of the electronic ground state of H2 (the ground states of para- and ortho-H2 respectively).
+    This value corresponds to what is commonly assumed as the minimum energy for the dissociation rate.
+    The real minimum energy depends on which rotovibrational levels are populated.
+    Output:
+        min_energy: in [eV]
+    '''
+
+    lw_transitions_dictionary = get_lw_transitions('LW', 'U_19+S_15')
+    mask = (lw_transitions_dictionary['VL'] == 0) & (lw_transitions_dictionary['JL'] <= 1)
+    min_energy = lw_transitions_dictionary['freq'][mask].min() * (const.h).to(u.eV / u.Hz)
+    
+    return min_energy
+
+
 def generate_lorentzian_line_profile(peak_frequency, gamma, frequency_array):
     
     '''
