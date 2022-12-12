@@ -1,0 +1,7 @@
+exampleSlug.txt represents the evolution of the SED, for a stellar population with:
+  - initial stellar mass: 1e6 Msun
+  - IMF: Salpeter, mass range [1, 120] Msun, perfectly sampled
+        (as IMF A in Wolcott-Green et al., 2017 https://ui.adsabs.harvard.edu/abs/2017MNRAS.469.3329W/abstract)
+  - metallicity: 0.05 Zsun
+  - stellar tracks: Geneva pre-2013 models, standard mass loss rate
+  - calculated with Slug2 (da Silva et al., 2012 https://ui.adsabs.harvard.edu/abs/2012ApJ...745..145D/abstract)
