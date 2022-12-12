@@ -38,6 +38,23 @@ def get_ground_states_data():
     return ground_states_data
 
 
+def get_reaction_min_energy():
+
+    '''
+    Get the bounding energy of the (0, 0) level of the electronic ground state of H2+.
+    This value corresponds to what is commonly assumed as the minimum energy for the dissociation rate.
+    The real minimum energy depends on which rotovibrational levels are populated.
+    Output:
+        min_energy: in [eV]
+    '''
+
+    ground_states_data = get_ground_states_data()
+    mask = (ground_states_data['v'] == 0) & (ground_states_data['J'] == 0)
+    min_energy = ground_states_data['eV'][mask][0]
+    
+    return min_energy
+
+
 def get_cross_section_zammit():
 
     '''
