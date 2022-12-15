@@ -472,6 +472,31 @@ def calculate_composite_cross_section(
     return cross_section, heating_cross_section
 
 
+def calculate_critical_density(gas_temperature):
+
+    # fit that describes how the critical density changes with the gas temperature [range 1e2-1e4 K]
+    # coefficients run from the highest power to the constant term
+    critical_density_fit_coefficients = np.array([
+        0.34039599533860915, -3.354413404320089,
+        8.794202214931317, -0.21462262237517066
+    ])
+    log_gas_temperature = np.log10(gas_temperature.value)
+    critical_density = np.power(10., np.polyval(critical_density_fit_coefficients, log_gas_temperature)) * u.cm**-3
+
+    return critical_density
+
+def calculate_critical_density_old(gas_temperature):
+
+    critical_density_fit_coefficients = np.array([
+        0.34039642148109583, -0.29084941325456615, 
+        -2.141586661424785, 5.168955239880383
+        ])
+    log_gas_temperature = np.log10(gas_temperature.value)
+    critical_density = np.power(10., np.polyval(critical_density_fit_coefficients, log_gas_temperature - 3.)) * u.cm**-3
+
+    return critical_density
+
+
 def calculate_kH2_low_resolution(
     wavelength_array,
     spectra_wl,
@@ -583,14 +608,7 @@ def calculate_kH2_low_resolution(
     integration_y_axis = lte_heating_cross_section * intensity_freq / energy_array.to(u.erg)
     lte_heating_rate = solid_angle * np.trapz(integration_y_axis, integration_x_axis)
 
-    # fit that describes how the critical density changes with the gas temperature [range 1e2-1e4 K]
-    # coefficients run from the highest power to the constant term
-    critical_density_fit_coefficients = np.array([
-        0.34039642148109583, -0.29084941325456615, 
-        -2.141586661424785, 5.168955239880383
-        ])
-    log_gas_temperature = np.log10(gas_temperature.value)
-    critical_density = np.power(10., np.polyval(critical_density_fit_coefficients, log_gas_temperature - 3.)) * u.cm**-3
+    critical_density = calculate_critical_density(gas_temperature)
     alpha_exponent = (1. + gas_density / critical_density)**-1
 
     dissociation_rate = lte_rate * (low_density_rate / lte_rate)**alpha_exponent
@@ -723,14 +741,7 @@ def calculate_kH2(
     integration_y_axis = lte_heating_cross_section * new_intensity_freq / custom_energy_array.to(u.erg)
     lte_heating_rate = solid_angle * np.trapz(integration_y_axis, integration_x_axis)
 
-    # fit that describes how the critical density changes with the gas temperature [range 1e2-1e4 K]
-    # coefficients run from the highest power to the constant term
-    critical_density_fit_coefficients = np.array([
-        0.34039642148109583, -0.29084941325456615, 
-        -2.141586661424785, 5.168955239880383
-        ])
-    log_gas_temperature = np.log10(gas_temperature.value)
-    critical_density = np.power(10., np.polyval(critical_density_fit_coefficients, log_gas_temperature - 3.)) * u.cm**-3
+    critical_density = calculate_critical_density(gas_temperature)
     alpha_exponent = (1. + gas_density / critical_density)**-1
 
     dissociation_rate = lte_rate * (low_density_rate / lte_rate)**alpha_exponent
