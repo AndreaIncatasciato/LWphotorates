@@ -58,8 +58,8 @@ def spec_nu2lambda(frequency_array, spectrum_freq):
         spectrum_freq = spectrum_freq * u.erg / u.s / u.Hz
 
     speed_of_light = (const.c).to(u.angstrom * u.Hz)
-    spectrum_wl = np.atleast_1d(spectrum_freq * frequency_array**2 / speed_of_light)[::-1]
-    return spectrum_wl
+    spectrum_wl = np.atleast_1d(spectrum_freq * frequency_array**2 / speed_of_light)
+    return np.flip(spectrum_wl, axis=spectrum_wl.ndim - 1)
 
 
 def spec_lambda2nu(wavelength_array, spectrum_wl):
@@ -74,8 +74,8 @@ def spec_lambda2nu(wavelength_array, spectrum_wl):
         spectrum_wl = spectrum_wl * u.erg / u.s / u.angstrom
 
     speed_of_light = (const.c).to(u.angstrom * u.Hz)
-    spectrum_freq = np.atleast_1d(spectrum_wl * wavelength_array**2 / speed_of_light)[::-1]
-    return spectrum_freq
+    spectrum_freq = np.atleast_1d(spectrum_wl * wavelength_array**2 / speed_of_light)
+    return np.flip(spectrum_freq, axis=spectrum_freq.ndim - 1)
 
 
 def interpolate_array(old_x_axis, old_y_axis, new_x_axis):
