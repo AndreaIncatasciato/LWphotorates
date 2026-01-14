@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=58.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "LWphotorates"
+version = "1.0.0"
+description = "Photoreaction rate calculations (H2, H- and H2+) given a stellar spectrum."
+readme = "README.md"
+requires-python = "<3.7"
+license = { text = "MIT" }
+
+authors = [
+    { name = "Andrea Incatasciato", email = "andrea.incatasciato93@gmail.com" }
+]
+
+dependencies = [
+    "frigus",
+    "hdf5",
+    "matplotlib",
+    "numpy",
+    "scipy",
+]
+
+[tool.setuptools]
+packages = ["LWphotorates"]
