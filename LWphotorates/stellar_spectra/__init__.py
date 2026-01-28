@@ -31,7 +31,7 @@ def compute_HM_detach_rate(
         wavelength_array: wavelength array associated with the spectra in [A]
         spectra_wl: spectra, as monochromatic luminosity in [erg/A/s]
         distance: distance of the radiating source in [kpc]
-        cross_section_reference: cross section to use, possible choices ['ML_17', 'SK_87', 'J_88', 'C_07']
+        cross_section_reference: cross section to use, possible choices ['ML_17', 'OO_60', 'W_79', 'J_88', 'C_07']
     Output:
         detachment_rate: detachment rate in [1/s]
     '''

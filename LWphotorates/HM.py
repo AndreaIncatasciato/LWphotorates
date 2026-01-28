@@ -12,8 +12,8 @@ def get_cross_section(reference='ML_17'):
     Get the cross section as a function of the photon energy.
     Five possible references:
       - ML_17: McLaughlin et al. (2017) https://ui.adsabs.harvard.edu/abs/2017JPhB...50k4001M/abstract
+      - OO_60: Ohmura & Ohmura (1960) https://ui.adsabs.harvard.edu/abs/1960PhRv..118..154O/abstract
       - W_79: Wishart (1979) https://ui.adsabs.harvard.edu/abs/1979MNRAS.187P..59W/abstract
-      - SK_87: Shapiro & Kang (1987) https://ui.adsabs.harvard.edu/abs/1987ApJ...318...32S/abstract
       - J_88: John (1988) https://ui.adsabs.harvard.edu/abs/1988A%26A...193..189J/abstract
       - C_07: Chuzhoy et al. (2007) https://ui.adsabs.harvard.edu/abs/2007ApJ...665L..85C/abstract
 
@@ -64,7 +64,7 @@ def get_cross_section(reference='ML_17'):
             'cross_section': cross_section_array
         }
 
-    elif reference == 'SK_87':
+    elif reference == 'OO_60':
 
         energy_array = np.linspace(HM_detach_min_energy.value, ioniz_energy_hydrogen.value, int(1e4)) * u.eV
         frequency_array = energy_array / const.h.to(u.eV / u.Hz)
@@ -146,7 +146,7 @@ def calculate_kHM(
         wavelength_array: wavelength array associated with the spectra in [A]
         spectra_wl: spectra, as monochromatic luminosity in [erg/A/s]
         distance: distance of the radiating source in [kpc]
-        cross_section_reference: cross section to use, possible choices ['ML_17', 'SK_87', 'J_88', 'C_07']
+        cross_section_reference: cross section to use, possible choices ['ML_17', 'OO_60', 'W_79', 'J_88', 'C_07']
     Output:
         detachment_rate: detachment rate in [1/s]
     '''
