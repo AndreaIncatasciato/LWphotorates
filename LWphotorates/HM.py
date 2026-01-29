@@ -54,7 +54,7 @@ def get_cross_section(reference='ML_17'):
         wavelength_array, cross_section_array = np.loadtxt(input_file_path, unpack=True)
         wavelength_array = wavelength_array * u.AA
         cross_section_array = cross_section_array * 1e-18 * u.cm**2
-        frequency_array = lambda2nu(wavelength_array)
+        frequency_array = lambda2nu(wavelength_array)[::-1]
         energy_array = const.h.to(u.eV / u.Hz) * frequency_array
 
         data_dictionary = {
