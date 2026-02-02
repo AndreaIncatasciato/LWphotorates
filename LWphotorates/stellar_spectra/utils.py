@@ -4,13 +4,17 @@ import xarray as xr
 import numpy as np
 from astropy import units as au
 from astropy import constants as ac
+from astropy.units import Quantity
 from hoki import load as bpass_load
 import gzip
 import shutil
+from LWphotorates.utils import generate_blackbody_spectrum, get_ioniz_energy_hydrogen
+from LWphotorates.H2 import get_reaction_min_energy as get_min_lw_energy
 
 DATA_DIR = Path("/cephfs/andrea/stellar_spectra")
 OUT_STELLAR_MASS = 1e6 * au.Msun
 BPASS_LUMINOSITY_CONVERSION_CONSTANT = ac.L_sun.to(au.erg/au.s) / au.AA
+MIN_ENERGY_FOR_BLACKBODY = 0.1 * au.eV
 
 
 def convert_yggdrasil_spec_to_xr(
@@ -103,7 +107,7 @@ def convert_bpass_spec_to_xr(imf: str, metallicity: str, multiplicity: str) -> x
         The metallicity of the stellar population of interest. For the available metallicities see Table 1 in the BPASS v2.2 manual (p.8).
     multiplicity : str
         The multiplicity of interest. Choose between "sin" (single stars) and "bin" (binaries).
-        
+
     Returns
     -------
     xr.Dataset
@@ -150,3 +154,68 @@ def convert_bpass_spec_to_xr(imf: str, metallicity: str, multiplicity: str) -> x
     uncompressed_file_path.unlink()
 
     return ds
+
+
+def normalise_blackbody_spectrum(
+    blackbody_temperature: Union[float, Quantity],
+    lw_photon_count_per_baryon: float,
+    max_stellar_age: Union[float, Quantity] = 5 * au.Myr,
+    stellar_mass: Union[float, Quantity] = OUT_STELLAR_MASS,
+) -> tuple:
+    """
+    Normalise a blackbody spectrum such that the number of LW photons emitted per baryon equals to the input value.
+
+    This is a common assumption in the literature, in order to find a sensible normalisation to a blackbody spectrum
+    that is intended to mimic a more complex stellar spectrum.
+
+    For example, Greif and Bromm (2006) assign PopIII stars with 1e5 K blackbody spectra, normalised such that they emit
+    2e4 LW photons per baryon in their lifetime (assumed to be 5 Myr).
+    Similarly, for PopII stars they use 1e4 K blackbody spectra that emit 4e3 LW photons per baryon in their lifetime (again 5 Myr).
+
+    Parameters
+    ----------
+    blackbody_temperature : Union[float, Quantity]
+        The temperature of the blackbody radiation, that sets the spectral shape. If a float is passed, the code assumes that it is in Kelvin.
+    lw_photon_count_per_baryon : float
+        The LW photons emitted per baryon throughout the lifetime of the stellar population.
+    max_stellar_age : Union[float, Quantity], optional
+        The maximum stellar age considered. Before it the stellar population is assumed to have a constant LW emission.
+        Past this age the population does not emit any LW photon. If a float is passed, the code assumes that it is in Myr. By default 5 Myr.
+    stellar_mass : Union[float, Quantity], optional
+        The total mass of the stellar population. If a float is passed, the code assumes that it is solar masses. By default OUT_STELLAR_MASS (currently 1e6 Msun).
+
+    Returns
+    -------
+    tuple[Quantity]
+        The energy array and the normalised spectrum (in units of monochromatic luminosity).
+    """
+    if isinstance(blackbody_temperature, float):
+        blackbody_temperature *= au.K
+    if isinstance(max_stellar_age, float):
+        stellar_mass *= au.Myr
+    if isinstance(stellar_mass, float):
+        stellar_mass *= au.M_sun
+    
+    # transform lw_photon_count_per_baryon to a photon rate (# of photons per baryon per second),
+    # assuming that the LW photon rate is constant throughtout the stellar lifetime
+    target_photon_rate = lw_photon_count_per_baryon * stellar_mass.to(au.kg) / ac.m_p / max_stellar_age.to(au.s)
+
+    # generate the BB spectrum
+    # (generate_blackbody_spectrum returns an intensity by default, here the units can be ignored and set manually
+    # to a luminosity, given that we are interested in the spectral shape and not in the absolute values)
+    energy_array = np.linspace(
+        MIN_ENERGY_FOR_BLACKBODY, get_ioniz_energy_hydrogen(), 10000)
+    frequency_array = energy_array / ac.h.to(au.eV / au.Hz)
+    spectrum_array = generate_blackbody_spectrum(blackbody_temperature, energy_array).value * au.erg / au.Hz / au.s
+
+    # integrate the spectrum only in the LW energy range
+    min_lw_energy = get_min_lw_energy()
+    max_lw_energy = get_ioniz_energy_hydrogen()
+    lw_mask = (energy_array >= min_lw_energy) & (energy_array <= max_lw_energy)
+    current_photon_rate = np.trapz(
+        spectrum_array[lw_mask] / energy_array[lw_mask],
+        frequency_array[lw_mask]).to(1 / au.s)
+    spectrum_normalisation = target_photon_rate / current_photon_rate
+    spectrum_array *= spectrum_normalisation
+
+    return energy_array, spectrum_array
