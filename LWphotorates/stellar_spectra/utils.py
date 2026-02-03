@@ -10,6 +10,7 @@ import gzip
 import shutil
 from LWphotorates.utils import generate_blackbody_spectrum, get_ioniz_energy_hydrogen
 from LWphotorates.H2 import get_reaction_min_energy as get_min_lw_energy
+import slugpy
 
 DATA_DIR = Path("/cephfs/andrea/stellar_spectra")
 OUT_STELLAR_MASS = 1e6 * au.Msun
@@ -152,6 +153,55 @@ def convert_bpass_spec_to_xr(imf: str, metallicity: str, multiplicity: str) -> x
     # save the xarray.Dataset to a netCDF file and delete the uncompressed file
     ds.to_netcdf(out_file_path)
     uncompressed_file_path.unlink()
+
+    return ds
+
+
+def convert_slug_spec_to_xr(model_name: str, slug_data_dir: Path) -> xr.Dataset:
+    """
+    Convert a SLUG series of spectra to an xarray.Dataset.
+
+    SLUG spectra files can be currently read with the slugpy library.
+    This is just a wrapper that saves the spectra to a netCDF file.
+
+    Parameters
+    ----------
+    model_name : str
+        The SLUG model name, as defined in the param file.
+    slug_data_dir : Path
+        The directory where the SLUG data is saved. It has to contain a subdirectory with the name of the model generated.
+
+    Returns
+    -------
+    xr.Dataset
+        The SLUG spectra, saved as an xarray.Dataset with a single variable and two coordinates (age and wavelength).
+    """
+    slug_run_directory = slug_data_dir / model_name
+    slug_param_file_path = slug_run_directory.with_suffix(".param")
+    spec_data = slugpy.read_cluster_spec(
+        model_name,
+        slug_run_directory,
+        fmt="bin")
+
+    ds_description = (
+        f"SLUG v2 spectra, generated from this param file: {slug_param_file_path}. "
+        "For more info look here: https://slug2.readthedocs.io/en/latest/parameters.html."
+    )
+    ds = xr.Dataset(
+        data_vars=dict(
+            luminosity=(
+                ["age", "wavelength"], spec_data.spec,
+                {"units": (au.erg / au.s / au.AA).to_string(), "stellar_mass": OUT_STELLAR_MASS.value}),
+        ),
+        coords=dict(
+            age=(["age"], spec_data.time / 1e6, {"units": au.Myr.to_string()}),
+            wavelength=(["wavelength"], spec_data.wl, {"units": au.AA.to_string()}),
+        ),
+        attrs=dict(description=ds_description)
+    )
+
+    # save the xarray.Dataset to a netCDF file
+    ds.to_netcdf(DATA_DIR / "slug" / (model_name + ".nc"))
 
     return ds
 
