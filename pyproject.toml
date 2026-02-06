@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=58.0"]
+requires = ["setuptools>=58.0,<70.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,7 @@ name = "LWphotorates"
 version = "1.0.0"
 description = "Photoreaction rate calculations (H2, H- and H2+) given a stellar spectrum."
 readme = "README.md"
-requires-python = "<3.7"
+requires-python = "<3.13"
 license = { text = "MIT" }
 
 authors = [
@@ -16,10 +16,13 @@ authors = [
 
 dependencies = [
     "frigus",
-    "hdf5",
+    "h5py",
+    "astropy<4.3",
     "matplotlib",
-    "numpy",
+    "numpy<1.23",
     "scipy",
+    "xarray",
+    "mpmath",
 ]
 
 [tool.setuptools]
