@@ -1,5 +1,8 @@
 frigus
-hdf5
+h5py
+astropy<4.3
 matplotlib
-numpy
+numpy<1.23
 scipy
+xarray
+mpmath
