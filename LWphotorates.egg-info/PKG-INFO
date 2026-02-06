@@ -1,10 +1,16 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: LWphotorates
 Version: 1.0.0
-Summary: UNKNOWN
-Home-page: UNKNOWN
-License: UNKNOWN
-Platform: UNKNOWN
+Summary: Photoreaction rate calculations (H2, H- and H2+) given a stellar spectrum.
+Author-email: Andrea Incatasciato <andrea.incatasciato93@gmail.com>
+License: MIT
+Requires-Python: <3.7
+Description-Content-Type: text/markdown
+Requires-Dist: frigus
+Requires-Dist: hdf5
+Requires-Dist: matplotlib
+Requires-Dist: numpy
+Requires-Dist: scipy
 
-UNKNOWN
-
+# LWphotorates
+calculation of H2 dissociation rates and other associated photochemical rates given a stellar spectrum
