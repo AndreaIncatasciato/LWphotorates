@@ -1,0 +1,5 @@
+frigus
+hdf5
+matplotlib
+numpy
+scipy
