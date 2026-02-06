@@ -14,6 +14,8 @@ Requires-Dist: numpy<1.23
 Requires-Dist: scipy
 Requires-Dist: xarray
 Requires-Dist: mpmath
+Requires-Dist: hoki
+Requires-Dist: ipykernel
 
 # LWphotorates
 calculation of H2 dissociation rates and other associated photochemical rates given a stellar spectrum

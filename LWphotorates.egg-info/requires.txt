@@ -6,3 +6,5 @@ numpy<1.23
 scipy
 xarray
 mpmath
+hoki
+ipykernel

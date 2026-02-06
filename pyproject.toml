@@ -23,6 +23,8 @@ dependencies = [
     "scipy",
     "xarray",
     "mpmath",
+    "hoki",
+    "ipykernel",
 ]
 
 [tool.setuptools]
